@@ -1,0 +1,37 @@
+{
+  "name": "weathershield",
+  "version": "1.0.0",
+  "description": "Parametric Weather Insurance DApp powered by Chainlink CRE",
+  "type": "module",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "node": "hardhat node",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "cre:simulate": "node scripts/cre-simulate.js",
+    "setup": "npm install && cd frontend && npm install"
+  },
+  "keywords": [
+    "chainlink",
+    "cre",
+    "parametric-insurance",
+    "defi",
+    "weather",
+    "hackathon"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^0.8.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.9.0"
+  }
+}

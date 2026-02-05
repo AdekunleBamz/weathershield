@@ -1,0 +1,138 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "policyCounter",
+      "outputs": [{"type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalPremiumsCollected",
+      "outputs": [{"type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalPayouts",
+      "outputs": [{"type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getContractBalance",
+      "outputs": [{"type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"name": "_user", "type": "address"}],
+      "name": "getUserPolicies",
+      "outputs": [{"type": "uint256[]"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"name": "_policyId", "type": "uint256"}],
+      "name": "getPolicy",
+      "outputs": [
+        {
+          "components": [
+            {"name": "holder", "type": "address"},
+            {"name": "premium", "type": "uint256"},
+            {"name": "coverageAmount", "type": "uint256"},
+            {"name": "startTime", "type": "uint256"},
+            {"name": "endTime", "type": "uint256"},
+            {"name": "weatherType", "type": "uint8"},
+            {"name": "triggerThreshold", "type": "int256"},
+            {"name": "location", "type": "string"},
+            {"name": "status", "type": "uint8"}
+          ],
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"name": "_weatherType", "type": "uint8"},
+        {"name": "_triggerThreshold", "type": "int256"},
+        {"name": "_location", "type": "string"}
+      ],
+      "name": "purchasePolicy",
+      "outputs": [{"type": "uint256"}],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"name": "_location", "type": "string"},
+        {"name": "_value", "type": "int256"}
+      ],
+      "name": "updateWeatherData",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"name": "_policyId", "type": "uint256"},
+        {"name": "_currentValue", "type": "int256"}
+      ],
+      "name": "processClaim",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"name": "_policyId", "type": "uint256"}],
+      "name": "isPolicyClaimable",
+      "outputs": [{"type": "bool"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {"indexed": true, "name": "policyId", "type": "uint256"},
+        {"indexed": true, "name": "holder", "type": "address"},
+        {"indexed": false, "name": "premium", "type": "uint256"},
+        {"indexed": false, "name": "coverageAmount", "type": "uint256"},
+        {"indexed": false, "name": "weatherType", "type": "uint8"},
+        {"indexed": false, "name": "location", "type": "string"}
+      ],
+      "name": "PolicyCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {"indexed": true, "name": "policyId", "type": "uint256"},
+        {"indexed": true, "name": "holder", "type": "address"},
+        {"indexed": false, "name": "payoutAmount", "type": "uint256"},
+        {"indexed": false, "name": "triggerValue", "type": "int256"}
+      ],
+      "name": "PolicyClaimed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {"indexed": false, "name": "location", "type": "string"},
+        {"indexed": false, "name": "value", "type": "int256"},
+        {"indexed": false, "name": "timestamp", "type": "uint256"}
+      ],
+      "name": "WeatherDataUpdated",
+      "type": "event"
+    }
+  ]
+}
