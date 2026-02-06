@@ -164,6 +164,33 @@ node scripts/cre-simulate.js --type 0 --threshold 100
 node scripts/cre-simulate.js --lat 34.05 --lon -118.24 --type 3
 ```
 
+<details>
+<summary>Example output</summary>
+
+```
+--- WeatherShield CRE Simulation ---
+
+Location: 40.7128, -74.006
+Type: Drought (0)
+Threshold: 100
+
+Fetching weather from Open-Meteo...
+
+Weather data:
+  Temp: -4.4°C
+  Rain: 0mm
+  Daily precip: 0mm
+  Daily max: -1.4°C
+  Daily min: -9.8°C
+
+Contract value: 0 (0mm)
+Trigger: value < 100? YES
+
+✓ CLAIM WOULD TRIGGER
+```
+
+</details>
+
 ---
 
 ## Project Structure
