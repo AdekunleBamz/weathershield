@@ -77,7 +77,20 @@ function App() {
     
     setLoading(true)
     try {
-      const accts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      // Force popup every time by requesting permissions
+      await window.ethereum.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }]
+      })
+      
+      // Now get the accounts
+      const accts = await window.ethereum.request({ method: 'eth_accounts' })
+      
+      if (accts.length === 0) {
+        showMsg('No account selected', 'error')
+        setLoading(false)
+        return
+      }
       
       // check network
       const chainId = await window.ethereum.request({ method: 'eth_chainId' })
