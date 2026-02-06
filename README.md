@@ -49,6 +49,17 @@ This model is already used in developing countries. WeatherShield brings it on-c
 
 ---
 
+## Chainlink Integration
+
+This project leverages **Chainlink Cross-Chain Runtime Environment (CRE)** to bridge off-chain weather data with on-chain insurance logic.
+
+- **Workflow Definition**: [cre-workflows/weather-monitor.yaml](cre-workflows/weather-monitor.yaml)
+- **Smart Contract**: [contracts/WeatherShield.sol](contracts/WeatherShield.sol) (Protected by `onlyCRE`)
+- **Simulation Script**: [scripts/cre-simulate.js](scripts/cre-simulate.js)
+- **CRE Config**: [cre.config.yaml](cre.config.yaml)
+
+---
+
 ## Architecture
 
 <p align="center">
@@ -132,6 +143,8 @@ cd frontend && npm run dev
 
 ### Simulate CRE Workflow
 
+Run the simulation script ([scripts/cre-simulate.js](scripts/cre-simulate.js)) to test the CRE logic locally:
+
 ```bash
 node scripts/cre-simulate.js
 node scripts/cre-simulate.js --type 0 --threshold 100
@@ -142,20 +155,12 @@ node scripts/cre-simulate.js --lat 34.05 --lon -118.24 --type 3
 
 ## Project Structure
 
-```
-weathershield/
-├── contracts/
-│   ├── WeatherShield.sol          # Main contract
-│   └── interfaces/IWeatherShield.sol
-├── cre-workflows/
-│   └── weather-monitor.yaml       # CRE workflow
-├── frontend/                       # React app
-├── scripts/
-│   ├── deploy.js
-│   └── cre-simulate.js            # Local CRE testing
-├── test/WeatherShield.test.cjs
-└── cre.config.yaml
-```
+- [contracts/WeatherShield.sol](contracts/WeatherShield.sol) — Main parametric insurance contract.
+- [cre-workflows/weather-monitor.yaml](cre-workflows/weather-monitor.yaml) — Chainlink CRE workflow for weather monitoring.
+- [frontend/](frontend/) — React + Vite web dashboard.
+- [scripts/cre-simulate.js](scripts/cre-simulate.js) — Simulation script for CRE logic.
+- [test/WeatherShield.test.cjs](test/WeatherShield.test.cjs) — Comprehensive test suite (11 passing tests).
+- [cre.config.yaml](cre.config.yaml) — CRE environment configuration.
 
 ---
 
