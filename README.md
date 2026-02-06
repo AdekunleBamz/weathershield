@@ -17,7 +17,7 @@
 | Resource | Link |
 |----------|------|
 | **Live App** | [weathershield-app.vercel.app](https://weathershield-app.vercel.app) |
-| **Video Demo** | [YouTube](https://youtu.be/VsvxXYtLxF4) |
+| **Video Demo** | [YouTube](https://youtu.be/_lRcvZZ_p_s) |
 | **Contract** | [Arbiscan](https://sepolia.arbiscan.io/address/0x0988119B3526C21129E0254f5E8bd995Bed51F6D) |
 
 ---
