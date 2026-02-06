@@ -260,7 +260,12 @@ function App() {
   
   function showMsg(text, type) {
     setMsg({ text, type })
-    setTimeout(() => setMsg(null), 4000)
+    if (type !== 'success') {
+      setTimeout(() => setMsg(null), 4000)
+    } else {
+      // success messages stay longer so user can click the tx link
+      setTimeout(() => setMsg(null), 15000)
+    }
   }
   
   function handleInput(e) {
@@ -318,7 +323,7 @@ function App() {
       {msg && (
         <div className={`msg ${msg.type}`}>
           {msg.text}
-          {lastTx && msg.type === 'success' && (
+          {lastTx && (msg.type === 'success' || msg.type === 'info') && (
             <a href={`${ARBISCAN_URL}${lastTx}`} target="_blank" rel="noreferrer" className="tx-link">
               View on Arbiscan ↗
             </a>
