@@ -127,7 +127,19 @@ function App() {
       const policies = await Promise.all(
         ids.map(async id => {
           const p = await c.getPolicy(id)
-          return { id: Number(id), ...p }
+          // ethers v6 returns struct as array-like, extract named props
+          return {
+            id: Number(id),
+            holder: p.holder,
+            premium: p.premium,
+            coverageAmount: p.coverageAmount,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            weatherType: Number(p.weatherType),
+            triggerThreshold: p.triggerThreshold,
+            location: p.location,
+            status: Number(p.status)
+          }
         })
       )
       setMyPolicies(policies)
@@ -217,9 +229,11 @@ function App() {
       <header>
         <h1>WeatherShield</h1>
         <div className="header-right">
-          <span className={`network ${networkOk ? 'ok' : 'bad'}`}>
-            {networkOk ? 'Arbitrum Sepolia' : 'Wrong Network'}
-          </span>
+          {account && (
+            <span className={`network ${networkOk ? 'ok' : 'bad'}`}>
+              {networkOk ? 'Arbitrum Sepolia' : 'Wrong Network'}
+            </span>
+          )}
           <button onClick={connect} disabled={loading}>
             {loading ? '...' : account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'Connect'}
           </button>

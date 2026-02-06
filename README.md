@@ -20,14 +20,10 @@
 
 ---
 
-## Screenshots
+## Screenshot
 
 <p align="center">
-  <img src="./docs/screenshot-main.png" alt="Main Interface" width="700"/>
-</p>
-
-<p align="center">
-  <img src="./docs/screenshot-policy.png" alt="Policy Purchase" width="700"/>
+  <img src="./docs/screenshot.png" alt="WeatherShield Interface" width="700"/>
 </p>
 
 ---
@@ -55,45 +51,9 @@ This model is already used in developing countries. WeatherShield brings it on-c
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         USER INTERFACE                          │
-│                    (React + ethers.js)                          │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    ARBITRUM SEPOLIA                              │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                  WeatherShield.sol                         │  │
-│  │                                                            │  │
-│  │  • purchasePolicy() ──── User pays premium                 │  │
-│  │  • updateWeatherData() ── CRE pushes weather readings      │  │
-│  │  • processClaim() ─────── CRE triggers automatic payout    │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└───────────────────────────┬─────────────────────────────────────┘
-                            ▲
-                            │
-┌───────────────────────────┴─────────────────────────────────────┐
-│                      CHAINLINK CRE                               │
-│                                                                  │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│   │  CRON    │───▶│  FETCH   │───▶│TRANSFORM │───▶│  WRITE   │  │
-│   │ (6 hrs)  │    │ WEATHER  │    │  DATA    │    │ ON-CHAIN │  │
-│   └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                         │        │
-│                   ┌──────────┐    ┌──────────┐          │        │
-│                   │  PAYOUT  │◀───│  CHECK   │◀─────────┘        │
-│                   │ (if met) │    │ TRIGGER  │                   │
-│                   └──────────┘    └──────────┘                   │
-└──────────────────────────────────────────────────────────────────┘
-                            ▲
-                            │
-┌───────────────────────────┴─────────────────────────────────────┐
-│                     OPEN-METEO API                               │
-│              (Free weather data, no API key)                     │
-└─────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="./docs/architecture.png" alt="WeatherShield Architecture" width="700"/>
+</p>
 
 ---
 
