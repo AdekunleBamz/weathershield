@@ -12,6 +12,8 @@ const ARBITRUM_SEPOLIA = {
   blockExplorerUrls: ['https://sepolia.arbiscan.io/']
 }
 
+const ARBISCAN_URL = 'https://sepolia.arbiscan.io/tx/'
+
 const WEATHER_TYPES = [
   { id: 0, name: 'Drought', icon: '☀️', desc: 'Payout if rainfall below threshold' },
   { id: 1, name: 'Flood', icon: '🌊', desc: 'Payout if rainfall above threshold' },
@@ -25,6 +27,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState(null)
   const [networkOk, setNetworkOk] = useState(false)
+  const [lastTx, setLastTx] = useState(null)
   
   const [stats, setStats] = useState({
     policies: 0, premiums: '0', payouts: '0', balance: '0'
@@ -202,6 +205,7 @@ function App() {
       
       const tx = await contract.purchasePolicy(form.type, thresh, loc, { value })
       showMsg('Tx submitted...', 'info')
+      setLastTx(tx.hash)
       await tx.wait()
       
       showMsg('Policy purchased!', 'success')
@@ -209,6 +213,47 @@ function App() {
     } catch (err) {
       console.error(err)
       showMsg(err.reason || 'Transaction failed', 'error')
+    }
+    setLoading(false)
+  }
+  
+  async function triggerClaim(policyId) {
+    if (!contract) return
+    
+    setLoading(true)
+    try {
+      // fetch current weather for this policy
+      const policy = myPolicies.find(p => p.id === policyId)
+      if (!policy) throw new Error('Policy not found')
+      
+      const [lat, lon] = policy.location.split(',')
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,rain&daily=precipitation_sum&timezone=auto`
+      const res = await fetch(url)
+      const data = await res.json()
+      
+      // figure out the right value based on weather type
+      let weatherValue
+      if (policy.weatherType <= 1) {
+        // drought/flood = rainfall
+        weatherValue = Math.round((data.daily?.precipitation_sum?.[0] || data.current.rain) * 10)
+      } else {
+        // frost/heat = temperature
+        weatherValue = Math.round(data.current.temperature_2m * 10)
+      }
+      
+      showMsg(`Weather value: ${weatherValue/10}. Triggering claim...`, 'info')
+      
+      const tx = await contract.processClaim(policyId, weatherValue)
+      setLastTx(tx.hash)
+      showMsg('Claim tx submitted...', 'info')
+      await tx.wait()
+      
+      showMsg('Payout sent!', 'success')
+      loadData(contract, account)
+    } catch (err) {
+      console.error(err)
+      const reason = err.reason || err.message || 'Claim failed'
+      showMsg(reason.includes('Conditions not met') ? 'Weather conditions not met yet' : reason, 'error')
     }
     setLoading(false)
   }
@@ -270,7 +315,16 @@ function App() {
         </div>
       </header>
       
-      {msg && <div className={`msg ${msg.type}`}>{msg.text}</div>}
+      {msg && (
+        <div className={`msg ${msg.type}`}>
+          {msg.text}
+          {lastTx && msg.type === 'success' && (
+            <a href={`${ARBISCAN_URL}${lastTx}`} target="_blank" rel="noreferrer" className="tx-link">
+              View on Arbiscan ↗
+            </a>
+          )}
+        </div>
+      )}
       
       {account && !networkOk && (
         <div className="warning">
@@ -347,6 +401,11 @@ function App() {
                     <span>Threshold: {Number(p.triggerThreshold)}</span>
                     <span>Coverage: {ethers.formatEther(p.coverageAmount)} ETH</span>
                   </div>
+                  {p.status === 0 && (
+                    <button className="trigger-btn" onClick={() => triggerClaim(p.id)} disabled={loading}>
+                      {loading ? '...' : '⚡ Trigger Claim'}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
