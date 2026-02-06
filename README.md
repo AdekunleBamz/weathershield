@@ -6,6 +6,8 @@
 
 **Parametric weather insurance that pays out automatically when conditions hit your threshold. No claims process, no paperwork, no waiting.**
 
+> WeatherShield is a parametric insurance protocol that uses Chainlink CRE to monitor real-world weather data and automatically execute on-chain payouts — no centralized backend, no manual claims.
+
 > Submission for Chainlink Block Magic Hackathon 2026 — DeFi Track
 
 ---
@@ -57,6 +59,15 @@ This project leverages **Chainlink Cross-Chain Runtime Environment (CRE)** to br
 - **Smart Contract**: [contracts/WeatherShield.sol](contracts/WeatherShield.sol) (Protected by `onlyCRE`)
 - **Simulation Script**: [scripts/cre-simulate.js](scripts/cre-simulate.js)
 - **CRE Config**: [cre.config.yaml](cre.config.yaml)
+
+## Why Chainlink CRE?
+
+CRE enables:
+- **Automated off-chain data retrieval** — fetch weather data on a schedule without a server
+- **Scheduled execution** — check conditions every 6 hours without centralized cron jobs
+- **Trust-minimized orchestration** — bridge external APIs and smart contracts without a middleman
+
+Without CRE, this system would require a centralized backend to poll weather APIs and trigger payouts — introducing a single point of failure. CRE makes the entire pipeline decentralized.
 
 ---
 
@@ -135,6 +146,8 @@ cd frontend && npm install && cd ..
 npx hardhat test
 ```
 
+> ✅ **Test Coverage:** 11 tests passing across policy creation, claims, access control, and edge cases.
+
 ### Run Frontend
 
 ```bash
@@ -178,14 +191,18 @@ node scripts/cre-simulate.js --lat 34.05 --lon -118.24 --type 3
 - Owner deposits via `depositFunds()`
 - Balance checked before processing claims
 
-**Assumptions**
-- Weather data from Open-Meteo is accurate
-- 6-hour check interval is sufficient
-- Single location per policy
-
 **Testnet Disclaimer**
 - Deployed on Arbitrum Sepolia for demonstration
 - Not audited for production use
+
+---
+
+## Limitations
+
+- Uses a single weather API source (future: multi-source verification)
+- Premium pricing is static (future: dynamic risk-based pricing)
+- Policies are not yet tokenized as NFTs
+- Single location per policy (future: area-based coverage)
 
 ---
 
