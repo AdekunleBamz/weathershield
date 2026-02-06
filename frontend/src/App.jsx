@@ -2,86 +2,56 @@ import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import WeatherShieldABI from './abi/WeatherShield.json'
 
-// Contract address - deployed on Arbitrum Sepolia
 const CONTRACT_ADDRESS = '0x0988119B3526C21129E0254f5E8bd995Bed51F6D'
 
-// Arbitrum Sepolia Network Configuration
 const ARBITRUM_SEPOLIA = {
-  chainId: '0x66eee', // 421614 in hex
+  chainId: '0x66eee',
   chainName: 'Arbitrum Sepolia',
-  nativeCurrency: {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    decimals: 18
-  },
+  nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
   rpcUrls: ['https://sepolia-rollup.arbitrum.io/rpc'],
   blockExplorerUrls: ['https://sepolia.arbiscan.io/']
 }
 
-// Weather types
 const WEATHER_TYPES = [
-  { id: 0, name: 'Drought', icon: '🏜️', description: 'Triggers when rainfall is below threshold' },
-  { id: 1, name: 'Flood', icon: '🌊', description: 'Triggers when rainfall exceeds threshold' },
-  { id: 2, name: 'Frost', icon: '❄️', description: 'Triggers when temperature drops below threshold' },
-  { id: 3, name: 'Heat', icon: '🔥', description: 'Triggers when temperature exceeds threshold' }
+  { id: 0, name: 'Drought', icon: '☀️', desc: 'Payout if rainfall below threshold' },
+  { id: 1, name: 'Flood', icon: '🌊', desc: 'Payout if rainfall above threshold' },
+  { id: 2, name: 'Frost', icon: '❄️', desc: 'Payout if temp below threshold' },
+  { id: 3, name: 'Heat', icon: '🔥', desc: 'Payout if temp above threshold' }
 ]
 
-// Policy status mapping
-const STATUS_MAP = {
-  0: { label: 'Active', class: 'active' },
-  1: { label: 'Claimed', class: 'claimed' },
-  2: { label: 'Expired', class: 'expired' },
-  3: { label: 'Cancelled', class: 'expired' }
-}
-
 function App() {
-  // State
   const [account, setAccount] = useState(null)
-  const [provider, setProvider] = useState(null)
   const [contract, setContract] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [alert, setAlert] = useState(null)
+  const [msg, setMsg] = useState(null)
   const [networkOk, setNetworkOk] = useState(false)
   
-  // Contract data
   const [stats, setStats] = useState({
-    totalPolicies: 0,
-    totalPremiums: '0',
-    totalPayouts: '0',
-    contractBalance: '0'
+    policies: 0, premiums: '0', payouts: '0', balance: '0'
   })
-  const [userPolicies, setUserPolicies] = useState([])
+  const [myPolicies, setMyPolicies] = useState([])
   
-  // Form state
-  const [formData, setFormData] = useState({
-    weatherType: 0,
+  const [form, setForm] = useState({
+    type: 0,
     threshold: '100',
-    latitude: '40.7128',
-    longitude: '-74.0060',
+    lat: '40.7128',
+    lon: '-74.0060',
     premium: '0.01'
   })
   
-  // Weather data
   const [weather, setWeather] = useState(null)
 
-  // Check and switch to Arbitrum Sepolia
-  const switchToArbitrumSepolia = async () => {
-    if (!window.ethereum) {
-      showAlert('Please install MetaMask!', 'error')
-      return false
-    }
-
+  // switch network if needed
+  async function switchNetwork() {
     try {
-      // Try to switch to Arbitrum Sepolia
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: ARBITRUM_SEPOLIA.chainId }]
       })
       setNetworkOk(true)
       return true
-    } catch (switchError) {
-      // Chain not added - add it
-      if (switchError.code === 4902) {
+    } catch (err) {
+      if (err.code === 4902) {
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
@@ -89,453 +59,249 @@ function App() {
           })
           setNetworkOk(true)
           return true
-        } catch (addError) {
-          console.error('Failed to add Arbitrum Sepolia:', addError)
-          showAlert('Failed to add Arbitrum Sepolia network. Please add it manually.', 'error')
+        } catch (e) {
+          showMsg('Could not add network', 'error')
           return false
         }
-      } else {
-        console.error('Failed to switch network:', switchError)
-        showAlert('Please switch to Arbitrum Sepolia network', 'error')
-        return false
       }
+      showMsg('Please switch to Arbitrum Sepolia', 'error')
+      return false
     }
   }
 
-  // Check current network
-  const checkNetwork = async () => {
-    if (!window.ethereum) return false
-    
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' })
-    const isCorrectNetwork = chainId === ARBITRUM_SEPOLIA.chainId
-    setNetworkOk(isCorrectNetwork)
-    return isCorrectNetwork
-  }
-
-  // Connect wallet
-  const connectWallet = async () => {
+  async function connect() {
     if (!window.ethereum) {
-      showAlert('Please install MetaMask!', 'error')
+      showMsg('Install MetaMask', 'error')
       return
     }
     
+    setLoading(true)
     try {
-      setLoading(true)
+      const accts = await window.ethereum.request({ method: 'eth_requestAccounts' })
       
-      // Step 1: Request account access (this WILL trigger wallet popup)
-      showAlert('Please approve the connection in your wallet...', 'info')
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      })
-      
-      if (!accounts || accounts.length === 0) {
-        showAlert('No accounts found. Please unlock your wallet.', 'error')
-        return
+      // check network
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' })
+      if (chainId !== ARBITRUM_SEPOLIA.chainId) {
+        showMsg('Switching network...', 'info')
+        if (!await switchNetwork()) return
       }
+      setNetworkOk(true)
       
-      // Step 2: Check and switch network
-      const isCorrectNetwork = await checkNetwork()
-      if (!isCorrectNetwork) {
-        showAlert('Switching to Arbitrum Sepolia network...', 'info')
-        const switched = await switchToArbitrumSepolia()
-        if (!switched) {
-          showAlert('Please switch to Arbitrum Sepolia to use this app', 'error')
-          return
-        }
-      }
-      
-      // Step 3: Setup provider and contract
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, WeatherShieldABI.abi, signer)
+      const c = new ethers.Contract(CONTRACT_ADDRESS, WeatherShieldABI.abi, signer)
       
-      setAccount(accounts[0])
-      setProvider(provider)
-      setContract(contract)
+      setAccount(accts[0])
+      setContract(c)
+      showMsg('Connected!', 'success')
       
-      showAlert(`Connected to Arbitrum Sepolia! Address: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, 'success')
-      
-      // Load data
-      await loadContractData(contract, accounts[0])
-    } catch (error) {
-      console.error('Connect wallet error:', error)
-      if (error.code === 4001) {
-        showAlert('Connection rejected. Please approve the connection in your wallet.', 'error')
+      loadData(c, accts[0])
+    } catch (err) {
+      console.error(err)
+      if (err.code === 4001) {
+        showMsg('Connection rejected', 'error')
       } else {
-        showAlert('Failed to connect wallet: ' + (error.message || 'Unknown error'), 'error')
+        showMsg('Connection failed', 'error')
       }
-    } finally {
-      setLoading(false)
+    }
+    setLoading(false)
+  }
+  
+  async function loadData(c, addr) {
+    try {
+      const [cnt, prem, pays, bal] = await Promise.all([
+        c.policyCounter(),
+        c.totalPremiumsCollected(),
+        c.totalPayouts(),
+        c.getContractBalance()
+      ])
+      
+      setStats({
+        policies: Number(cnt),
+        premiums: ethers.formatEther(prem),
+        payouts: ethers.formatEther(pays),
+        balance: ethers.formatEther(bal)
+      })
+      
+      const ids = await c.getUserPolicies(addr)
+      const policies = await Promise.all(
+        ids.map(async id => {
+          const p = await c.getPolicy(id)
+          return { id: Number(id), ...p }
+        })
+      )
+      setMyPolicies(policies)
+    } catch (err) {
+      console.error('load error:', err)
     }
   }
-
-  // Listen for network changes
-  useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.on('chainChanged', (chainId) => {
-        console.log('Network changed to:', chainId)
-        if (chainId !== ARBITRUM_SEPOLIA.chainId) {
-          setNetworkOk(false)
-          showAlert('Please switch back to Arbitrum Sepolia', 'error')
-        } else {
-          setNetworkOk(true)
-          showAlert('Connected to Arbitrum Sepolia', 'success')
-          // Reload the page to reset state
-          window.location.reload()
-        }
+  
+  async function fetchWeather() {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${form.lat}&longitude=${form.lon}&current=temperature_2m,rain`
+      const res = await fetch(url)
+      const data = await res.json()
+      setWeather({
+        temp: data.current.temperature_2m,
+        rain: data.current.rain
       })
-
-      window.ethereum.on('accountsChanged', (accounts) => {
-        if (accounts.length === 0) {
-          setAccount(null)
-          setContract(null)
-          showAlert('Wallet disconnected', 'info')
-        } else {
-          setAccount(accounts[0])
-          showAlert(`Switched to account: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, 'info')
-          window.location.reload()
-        }
-      })
+    } catch (e) {
+      console.error('weather fetch failed')
     }
-
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeAllListeners('chainChanged')
-        window.ethereum.removeAllListeners('accountsChanged')
+  }
+  
+  async function buyPolicy(e) {
+    e.preventDefault()
+    if (!contract) {
+      showMsg('Connect wallet first', 'error')
+      return
+    }
+    
+    setLoading(true)
+    try {
+      const loc = `${form.lat},${form.lon}`
+      const thresh = parseInt(form.threshold) || 100
+      const value = ethers.parseEther(form.premium || '0.01')
+      
+      const tx = await contract.purchasePolicy(form.type, thresh, loc, { value })
+      showMsg('Tx submitted...', 'info')
+      await tx.wait()
+      
+      showMsg('Policy purchased!', 'success')
+      loadData(contract, account)
+    } catch (err) {
+      console.error(err)
+      showMsg(err.reason || 'Transaction failed', 'error')
+    }
+    setLoading(false)
+  }
+  
+  function showMsg(text, type) {
+    setMsg({ text, type })
+    setTimeout(() => setMsg(null), 4000)
+  }
+  
+  function handleInput(e) {
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
+  
+  // fetch weather when location changes
+  useEffect(() => {
+    if (form.lat && form.lon) fetchWeather()
+  }, [form.lat, form.lon])
+  
+  // listen for network/account changes
+  useEffect(() => {
+    if (!window.ethereum) return
+    
+    window.ethereum.on('chainChanged', () => window.location.reload())
+    window.ethereum.on('accountsChanged', accts => {
+      if (accts.length === 0) {
+        setAccount(null)
+        setContract(null)
+      } else {
+        window.location.reload()
       }
+    })
+    
+    return () => {
+      window.ethereum.removeAllListeners('chainChanged')
+      window.ethereum.removeAllListeners('accountsChanged')
     }
   }, [])
 
-  // Load contract data
-  const loadContractData = async (contractInstance, userAddress) => {
-    try {
-      const policyCounter = await contractInstance.policyCounter()
-      const totalPremiums = await contractInstance.totalPremiumsCollected()
-      const totalPayouts = await contractInstance.totalPayouts()
-      const balance = await contractInstance.getContractBalance()
-      
-      setStats({
-        totalPolicies: policyCounter.toString(),
-        totalPremiums: ethers.formatEther(totalPremiums),
-        totalPayouts: ethers.formatEther(totalPayouts),
-        contractBalance: ethers.formatEther(balance)
-      })
-      
-      // Load user policies
-      const policyIds = await contractInstance.getUserPolicies(userAddress)
-      const policies = await Promise.all(
-        policyIds.map(async (id) => {
-          const policy = await contractInstance.getPolicy(id)
-          return {
-            id: id.toString(),
-            holder: policy.holder,
-            premium: ethers.formatEther(policy.premium),
-            coverageAmount: ethers.formatEther(policy.coverageAmount),
-            startTime: new Date(Number(policy.startTime) * 1000),
-            endTime: new Date(Number(policy.endTime) * 1000),
-            weatherType: Number(policy.weatherType),
-            threshold: policy.triggerThreshold.toString(),
-            location: policy.location,
-            status: Number(policy.status)
-          }
-        })
-      )
-      
-      setUserPolicies(policies)
-    } catch (error) {
-      console.error('Error loading contract data:', error)
-    }
-  }
-
-  // Fetch weather
-  const fetchWeather = async () => {
-    try {
-      const response = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${formData.latitude}&longitude=${formData.longitude}&current=temperature_2m,precipitation,rain&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`
-      )
-      const data = await response.json()
-      setWeather({
-        temp: data.current.temperature_2m,
-        rain: data.current.rain,
-        location: `${formData.latitude}, ${formData.longitude}`
-      })
-    } catch (error) {
-      console.error('Error fetching weather:', error)
-    }
-  }
-
-  // Purchase policy
-  const purchasePolicy = async (e) => {
-    e.preventDefault()
-    
-    if (!contract) {
-      showAlert('Please connect your wallet first', 'error')
-      return
-    }
-    
-    try {
-      setLoading(true)
-      
-      const location = `${formData.latitude},${formData.longitude}`
-      const threshold = parseInt(formData.threshold) || 100
-      const premium = ethers.parseEther(formData.premium || '0.01')
-      
-      // Validate inputs
-      if (isNaN(threshold) || threshold <= 0) {
-        showAlert('Please enter a valid threshold value', 'error')
-        setLoading(false)
-        return
-      }
-      
-      console.log('Purchasing policy:', {
-        weatherType: formData.weatherType,
-        threshold,
-        location,
-        premium: formData.premium
-      })
-      
-      const tx = await contract.purchasePolicy(
-        formData.weatherType,
-        threshold,
-        location,
-        { value: premium }
-      )
-      
-      showAlert('Transaction submitted! Waiting for confirmation...', 'info')
-      await tx.wait()
-      
-      showAlert('Policy purchased successfully!', 'success')
-      await loadContractData(contract, account)
-    } catch (error) {
-      console.error(error)
-      showAlert(error.reason || 'Transaction failed', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Show alert
-  const showAlert = (message, type) => {
-    setAlert({ message, type })
-    setTimeout(() => setAlert(null), 5000)
-  }
-
-  // Handle form change
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  // Fetch weather on location change
-  useEffect(() => {
-    if (formData.latitude && formData.longitude) {
-      fetchWeather()
-    }
-  }, [formData.latitude, formData.longitude])
+  const statusLabels = ['Active', 'Claimed', 'Expired', 'Cancelled']
 
   return (
     <div className="app">
-      {/* Header */}
-      <header className="header">
-        <div className="logo">
-          <img src="/shield.svg" alt="WeatherShield" />
-          <h1>WeatherShield</h1>
-        </div>
+      <header>
+        <h1>WeatherShield</h1>
         <div className="header-right">
-          {/* Network Badge */}
-          <div className={`network-badge ${networkOk ? 'connected' : 'wrong-network'}`}>
-            {networkOk ? '🟢 Arbitrum Sepolia' : '🔴 Wrong Network'}
-          </div>
-          {/* Switch Network Button (shown when on wrong network and connected) */}
-          {account && !networkOk && (
-            <button 
-              className="switch-network-btn"
-              onClick={switchToArbitrumSepolia}
-              disabled={loading}
-            >
-              Switch Network
-            </button>
-          )}
-          {/* Connect/Account Button */}
-          <button 
-            className={`connect-btn ${account ? 'connected' : ''}`}
-            onClick={connectWallet}
-            disabled={loading}
-          >
-            {loading ? (
-              <span className="spinner"></span>
-            ) : account ? (
-              `${account.slice(0, 6)}...${account.slice(-4)}`
-            ) : (
-              '🔗 Connect Wallet'
-            )}
+          <span className={`network ${networkOk ? 'ok' : 'bad'}`}>
+            {networkOk ? 'Arbitrum Sepolia' : 'Wrong Network'}
+          </span>
+          <button onClick={connect} disabled={loading}>
+            {loading ? '...' : account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'Connect'}
           </button>
         </div>
       </header>
-
-      {/* Network Warning Banner */}
+      
+      {msg && <div className={`msg ${msg.type}`}>{msg.text}</div>}
+      
       {account && !networkOk && (
-        <div className="network-warning">
-          ⚠️ Please switch to <strong>Arbitrum Sepolia</strong> network to use this dApp.
-          <button onClick={switchToArbitrumSepolia}>Switch Now</button>
+        <div className="warning">
+          Switch to Arbitrum Sepolia to continue
+          <button onClick={switchNetwork}>Switch</button>
         </div>
       )}
-
-      {/* Alert */}
-      {alert && (
-        <div className={`alert ${alert.type}`}>
-          {alert.message}
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <h3>Total Policies</h3>
-          <div className="value primary">{stats.totalPolicies}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Premiums Collected</h3>
-          <div className="value secondary">{stats.totalPremiums} ETH</div>
-        </div>
-        <div className="stat-card">
-          <h3>Total Payouts</h3>
-          <div className="value warning">{stats.totalPayouts} ETH</div>
-        </div>
-        <div className="stat-card">
-          <h3>Contract Balance</h3>
-          <div className="value">{stats.contractBalance} ETH</div>
-        </div>
+      
+      <div className="stats">
+        <div className="stat"><label>Policies</label><span>{stats.policies}</span></div>
+        <div className="stat"><label>Premiums</label><span>{stats.premiums} ETH</span></div>
+        <div className="stat"><label>Payouts</label><span>{stats.payouts} ETH</span></div>
+        <div className="stat"><label>Balance</label><span>{stats.balance} ETH</span></div>
       </div>
-
-      {/* Main Content */}
-      <div className="main-content">
-        {/* Purchase Policy Card */}
+      
+      <div className="main">
         <div className="card">
-          <h2><span className="icon">🛡️</span> Purchase Insurance</h2>
+          <h2>Buy Insurance</h2>
           
-          {/* Weather Display */}
           {weather && (
-            <div className="weather-display">
-              <div className="weather-icon">
-                {weather.temp > 30 ? '☀️' : weather.rain > 0 ? '🌧️' : '⛅'}
-              </div>
-              <div className="weather-temp">{weather.temp}°C</div>
-              <div className="weather-location">{weather.location}</div>
+            <div className="weather">
+              <span>{weather.temp}°C</span>
+              <span>{weather.rain}mm rain</span>
             </div>
           )}
           
-          <form onSubmit={purchasePolicy}>
-            <div className="form-group">
-              <label>Insurance Type</label>
-              <select 
-                name="weatherType" 
-                value={formData.weatherType}
-                onChange={handleChange}
-              >
-                {WEATHER_TYPES.map(type => (
-                  <option key={type.id} value={type.id}>
-                    {type.icon} {type.name} - {type.description}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <form onSubmit={buyPolicy}>
+            <label>Type</label>
+            <select name="type" value={form.type} onChange={handleInput}>
+              {WEATHER_TYPES.map(t => (
+                <option key={t.id} value={t.id}>{t.icon} {t.name}</option>
+              ))}
+            </select>
             
-            <div className="form-row">
-              <div className="form-group">
+            <label>Threshold</label>
+            <input name="threshold" value={form.threshold} onChange={handleInput} placeholder="100" />
+            <small>{WEATHER_TYPES[form.type].desc}</small>
+            
+            <div className="row">
+              <div>
                 <label>Latitude</label>
-                <input 
-                  type="text" 
-                  name="latitude"
-                  value={formData.latitude}
-                  onChange={handleChange}
-                  placeholder="40.7128"
-                />
+                <input name="lat" value={form.lat} onChange={handleInput} />
               </div>
-              <div className="form-group">
+              <div>
                 <label>Longitude</label>
-                <input 
-                  type="text" 
-                  name="longitude"
-                  value={formData.longitude}
-                  onChange={handleChange}
-                  placeholder="-74.0060"
-                />
+                <input name="lon" value={form.lon} onChange={handleInput} />
               </div>
             </div>
             
-            <div className="form-group">
-              <label>
-                Trigger Threshold 
-                {formData.weatherType <= 1 ? ' (mm × 10)' : ' (°C × 10)'}
-              </label>
-              <input 
-                type="number" 
-                name="threshold"
-                value={formData.threshold}
-                onChange={handleChange}
-                placeholder={formData.weatherType <= 1 ? "e.g., 100 = 10mm" : "e.g., 400 = 40°C"}
-              />
-            </div>
+            <label>Premium (ETH)</label>
+            <input name="premium" value={form.premium} onChange={handleInput} placeholder="0.01" />
+            <small>Coverage: {(parseFloat(form.premium || 0) * 10).toFixed(2)} ETH</small>
             
-            <div className="form-group">
-              <label>Premium Amount (ETH)</label>
-              <input 
-                type="text" 
-                name="premium"
-                value={formData.premium}
-                onChange={handleChange}
-                placeholder="0.01"
-              />
-              <small style={{color: 'var(--text-secondary)', marginTop: '4px', display: 'block'}}>
-                Coverage: {(parseFloat(formData.premium || 0) * 10).toFixed(3)} ETH (10x premium)
-              </small>
-            </div>
-            
-            <button 
-              type="submit" 
-              className="submit-btn"
-              disabled={loading || !account}
-            >
-              {loading ? <span className="spinner"></span> : '🛡️ Purchase Policy'}
+            <button type="submit" disabled={loading || !account}>
+              {loading ? 'Processing...' : 'Buy Policy'}
             </button>
           </form>
         </div>
-
-        {/* User Policies Card */}
+        
         <div className="card">
-          <h2><span className="icon">📋</span> Your Policies</h2>
-          
-          {userPolicies.length === 0 ? (
-            <div className="empty-state">
-              <div className="icon">📭</div>
-              <p>No policies yet. Purchase your first insurance policy!</p>
-            </div>
+          <h2>My Policies</h2>
+          {myPolicies.length === 0 ? (
+            <p className="empty">No policies yet</p>
           ) : (
-            <div className="policy-list">
-              {userPolicies.map(policy => (
-                <div key={policy.id} className="policy-item">
+            <div className="policies">
+              {myPolicies.map(p => (
+                <div key={p.id} className={`policy ${statusLabels[p.status].toLowerCase()}`}>
                   <div className="policy-header">
-                    <span className="policy-id">
-                      {WEATHER_TYPES[policy.weatherType].icon} Policy #{policy.id}
-                    </span>
-                    <span className={`policy-status ${STATUS_MAP[policy.status].class}`}>
-                      {STATUS_MAP[policy.status].label}
-                    </span>
+                    <span>#{p.id}</span>
+                    <span className="status">{statusLabels[p.status]}</span>
                   </div>
-                  <div className="policy-details">
-                    <span>Premium:</span>
-                    <strong>{policy.premium} ETH</strong>
-                    <span>Coverage:</span>
-                    <strong>{policy.coverageAmount} ETH</strong>
-                    <span>Location:</span>
-                    <strong>{policy.location}</strong>
-                    <span>Threshold:</span>
-                    <strong>{policy.threshold / 10}{policy.weatherType <= 1 ? 'mm' : '°C'}</strong>
-                    <span>Expires:</span>
-                    <strong>{policy.endTime.toLocaleDateString()}</strong>
+                  <div className="policy-info">
+                    <span>{WEATHER_TYPES[p.weatherType].icon} {WEATHER_TYPES[p.weatherType].name}</span>
+                    <span>Threshold: {Number(p.triggerThreshold)}</span>
+                    <span>Coverage: {ethers.formatEther(p.coverageAmount)} ETH</span>
                   </div>
                 </div>
               ))}
@@ -543,14 +309,6 @@ function App() {
           )}
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="footer">
-        <p>Powered by Chainlink CRE | Built for Hackathon 2026</p>
-        <div className="chainlink-badge">
-          ⛓️ Chainlink Compute Runtime Environment
-        </div>
-      </footer>
     </div>
   )
 }

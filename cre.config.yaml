@@ -1,37 +1,14 @@
-# WeatherShield CRE Configuration
-# Configuration file for Chainlink CRE CLI
+# CRE config for WeatherShield
 
-version: "1.0.0"
-
-# Network configurations
 networks:
-  sepolia:
-    chain_id: 11155111
-    rpc_url: "${SEPOLIA_RPC_URL}"
-    
   arbitrum-sepolia:
-    chain_id: 421614
-    rpc_url: "${ARBITRUM_SEPOLIA_RPC_URL}"
-    
-  localhost:
-    chain_id: 31337
-    rpc_url: "http://127.0.0.1:8545"
+    rpc: "https://sepolia-rollup.arbitrum.io/rpc"
+    chainId: 421614
 
-# Workflow configurations
+contracts:
+  weathershield:
+    address: "0x0988119B3526C21129E0254f5E8bd995Bed51F6D"
+    network: arbitrum-sepolia
+
 workflows:
-  weather-monitor:
-    path: "./cre-workflows/weather-monitor.yaml"
-    enabled: true
-    
-  batch-monitor:
-    path: "./cre-workflows/batch-monitor.yaml"
-    enabled: true
-
-# Default settings
-defaults:
-  network: "sepolia"
-  gas_limit: 500000
-  
-# Secrets (loaded from environment)
-secrets:
-  private_key: "${PRIVATE_KEY}"
+  - ./cre-workflows/weather-monitor.yaml

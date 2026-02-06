@@ -1,60 +1,30 @@
 # WeatherShield CRE Workflow
-# Chainlink Compute Runtime Environment workflow for parametric weather insurance
-# This workflow monitors weather conditions and triggers insurance payouts automatically
+# Monitors weather and triggers insurance payouts
 
 name: weathershield-monitor
 version: "1.0.0"
-description: "Monitors weather data from Open-Meteo API and triggers insurance claims when conditions are met"
 
-# ============================================================
-# WORKFLOW TRIGGERS
-# ============================================================
 triggers:
-  # Time-based trigger - checks weather every 6 hours
-  - id: scheduled_check
+  - id: scheduled
     type: cron
     config:
-      schedule: "0 */6 * * *"  # Every 6 hours
-      
-  # On-demand trigger for manual checks
-  - id: manual_check
-    type: webhook
-    config:
-      path: /check-weather
+      schedule: "0 */6 * * *"  # every 6 hours
 
-# ============================================================
-# WORKFLOW INPUTS
-# ============================================================
 inputs:
-  # Contract address on target network
   contract_address:
     type: string
-    description: "WeatherShield contract address"
     default: "0x0988119B3526C21129E0254f5E8bd995Bed51F6D"
-    
-  # Location to monitor (latitude,longitude)
   location:
     type: string
-    description: "Location in lat,lon format"
-    default: "40.7128,-74.0060"  # New York City
-    
-  # Policy ID to check
+    default: "40.7128,-74.0060"
   policy_id:
     type: uint256
-    description: "Policy ID to monitor"
-    
-  # Weather type (0=Drought, 1=Flood, 2=Frost, 3=Heat)
   weather_type:
     type: uint8
-    description: "Type of weather condition to monitor"
 
-# ============================================================
-# WORKFLOW ACTIONS
-# ============================================================
 actions:
-  # Step 1: Fetch weather data from Open-Meteo API (FREE - no API key needed!)
+  # get weather from open-meteo (free api)
   - id: fetch_weather
-    name: "Fetch Weather Data"
     type: http_request
     config:
       method: GET
@@ -62,169 +32,72 @@ actions:
       params:
         latitude: "{{split(inputs.location, ',')[0]}}"
         longitude: "{{split(inputs.location, ',')[1]}}"
-        current: "temperature_2m,precipitation,rain"
+        current: "temperature_2m,rain"
         daily: "temperature_2m_max,temperature_2m_min,precipitation_sum"
         timezone: "auto"
-      headers:
-        Content-Type: "application/json"
     outputs:
-      current_temp: "{{response.current.temperature_2m}}"
-      current_rain: "{{response.current.rain}}"
+      temp: "{{response.current.temperature_2m}}"
+      rain: "{{response.current.rain}}"
       daily_precip: "{{response.daily.precipitation_sum[0]}}"
-      daily_temp_max: "{{response.daily.temperature_2m_max[0]}}"
-      daily_temp_min: "{{response.daily.temperature_2m_min[0]}}"
+      temp_max: "{{response.daily.temperature_2m_max[0]}}"
+      temp_min: "{{response.daily.temperature_2m_min[0]}}"
 
-  # Step 2: Transform weather data based on policy type
-  - id: transform_data
-    name: "Transform Weather Data"
+  # transform to contract format
+  - id: transform
     type: compute
     depends_on: [fetch_weather]
     config:
       runtime: javascript
       code: |
-        // Get weather type from input
-        const weatherType = inputs.weather_type;
-        const currentTemp = actions.fetch_weather.outputs.current_temp;
-        const currentRain = actions.fetch_weather.outputs.current_rain;
-        const dailyPrecip = actions.fetch_weather.outputs.daily_precip;
-        const dailyTempMax = actions.fetch_weather.outputs.daily_temp_max;
-        const dailyTempMin = actions.fetch_weather.outputs.daily_temp_min;
+        const type = inputs.weather_type;
+        let val;
         
-        let relevantValue;
-        let valueDescription;
-        
-        switch(weatherType) {
-          case 0: // Drought - check precipitation
-            relevantValue = Math.round(dailyPrecip * 10); // Convert to 0.1mm precision as int
-            valueDescription = `Daily precipitation: ${dailyPrecip}mm`;
-            break;
-          case 1: // Flood - check precipitation
-            relevantValue = Math.round(dailyPrecip * 10);
-            valueDescription = `Daily precipitation: ${dailyPrecip}mm`;
-            break;
-          case 2: // Frost - check min temperature
-            relevantValue = Math.round(dailyTempMin * 10); // Convert to 0.1°C precision as int
-            valueDescription = `Min temperature: ${dailyTempMin}°C`;
-            break;
-          case 3: // Heat - check max temperature
-            relevantValue = Math.round(dailyTempMax * 10);
-            valueDescription = `Max temperature: ${dailyTempMax}°C`;
-            break;
-          default:
-            relevantValue = 0;
-            valueDescription = "Unknown weather type";
+        if (type === 0 || type === 1) {
+          val = Math.round(actions.fetch_weather.outputs.daily_precip * 10);
+        } else if (type === 2) {
+          val = Math.round(actions.fetch_weather.outputs.temp_min * 10);
+        } else {
+          val = Math.round(actions.fetch_weather.outputs.temp_max * 10);
         }
         
-        return {
-          weather_value: relevantValue,
-          description: valueDescription,
-          timestamp: Date.now(),
-          raw_data: {
-            temp: currentTemp,
-            rain: currentRain,
-            daily_precip: dailyPrecip,
-            temp_max: dailyTempMax,
-            temp_min: dailyTempMin
-          }
-        };
+        return { value: val };
     outputs:
-      weather_value: "{{result.weather_value}}"
-      description: "{{result.description}}"
-      timestamp: "{{result.timestamp}}"
+      weather_value: "{{result.value}}"
 
-  # Step 3: Update weather data on-chain
-  - id: update_onchain
-    name: "Update On-Chain Weather Data"
+  # update contract
+  - id: update_chain
     type: evm_write
-    depends_on: [transform_data]
+    depends_on: [transform]
     config:
-      network: "{{env.NETWORK}}"
-      contract_address: "{{inputs.contract_address}}"
-      abi_path: "./artifacts/contracts/WeatherShield.sol/WeatherShield.json"
-      function: "updateWeatherData"
+      address: "{{inputs.contract_address}}"
+      abi: "function updateWeatherData(string,int256)"
+      method: updateWeatherData
       params:
         - "{{inputs.location}}"
-        - "{{actions.transform_data.outputs.weather_value}}"
-      gas_limit: 200000
+        - "{{actions.transform.outputs.weather_value}}"
 
-  # Step 4: Check if policy is claimable
-  - id: check_claimable
-    name: "Check Policy Claimable"
+  # check if claimable
+  - id: check_claim
     type: evm_read
-    depends_on: [update_onchain]
+    depends_on: [update_chain]
     config:
-      network: "{{env.NETWORK}}"
-      contract_address: "{{inputs.contract_address}}"
-      abi_path: "./artifacts/contracts/WeatherShield.sol/WeatherShield.json"
-      function: "isPolicyClaimable"
+      address: "{{inputs.contract_address}}"
+      abi: "function isPolicyClaimable(uint256) view returns (bool)"
+      method: isPolicyClaimable
       params:
         - "{{inputs.policy_id}}"
     outputs:
-      is_claimable: "{{result}}"
+      claimable: "{{result}}"
 
-  # Step 5: Process claim if conditions are met
+  # process claim if triggered
   - id: process_claim
-    name: "Process Insurance Claim"
     type: evm_write
-    depends_on: [check_claimable]
-    condition: "{{actions.check_claimable.outputs.is_claimable == true}}"
+    depends_on: [check_claim]
+    condition: "{{actions.check_claim.outputs.claimable == true}}"
     config:
-      network: "{{env.NETWORK}}"
-      contract_address: "{{inputs.contract_address}}"
-      abi_path: "./artifacts/contracts/WeatherShield.sol/WeatherShield.json"
-      function: "processClaim"
+      address: "{{inputs.contract_address}}"
+      abi: "function processClaim(uint256,int256)"
+      method: processClaim
       params:
         - "{{inputs.policy_id}}"
-        - "{{actions.transform_data.outputs.weather_value}}"
-      gas_limit: 300000
-
-  # Step 6: Log results
-  - id: log_results
-    name: "Log Workflow Results"
-    type: compute
-    depends_on: [check_claimable]
-    config:
-      runtime: javascript
-      code: |
-        const isClaimable = actions.check_claimable.outputs.is_claimable;
-        const weatherValue = actions.transform_data.outputs.weather_value;
-        const description = actions.transform_data.outputs.description;
-        
-        console.log("=== WeatherShield CRE Workflow Results ===");
-        console.log(`Location: ${inputs.location}`);
-        console.log(`Policy ID: ${inputs.policy_id}`);
-        console.log(`Weather Data: ${description}`);
-        console.log(`Raw Value: ${weatherValue}`);
-        console.log(`Claimable: ${isClaimable}`);
-        
-        if (isClaimable) {
-          console.log("✅ CLAIM TRIGGERED - Payout processed!");
-        } else {
-          console.log("⏳ No claim triggered - conditions not met");
-        }
-        
-        return {
-          success: true,
-          claimTriggered: isClaimable,
-          weatherData: description
-        };
-
-# ============================================================
-# ENVIRONMENT VARIABLES
-# ============================================================
-env:
-  NETWORK: "sepolia"  # or arbitrum-sepolia, base-sepolia
-
-# ============================================================
-# OUTPUT
-# ============================================================
-outputs:
-  claim_triggered:
-    value: "{{actions.check_claimable.outputs.is_claimable}}"
-    description: "Whether an insurance claim was triggered"
-  weather_value:
-    value: "{{actions.transform_data.outputs.weather_value}}"
-    description: "The weather value that was recorded"
-  weather_description:
-    value: "{{actions.transform_data.outputs.description}}"
-    description: "Human-readable weather description"
+        - "{{actions.transform.outputs.weather_value}}"

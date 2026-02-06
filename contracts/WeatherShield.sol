@@ -4,25 +4,22 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/**
- * @title WeatherShield - Parametric Weather Insurance
- * @notice Automated insurance payouts based on weather conditions
- * @dev Integrates with Chainlink CRE for weather data and automated triggers
- * 
- * ██╗    ██╗███████╗ █████╗ ████████╗██╗  ██╗███████╗██████╗ ███████╗██╗  ██╗██╗███████╗██╗     ██████╗ 
- * ██║    ██║██╔════╝██╔══██╗╚══██╔══╝██║  ██║██╔════╝██╔══██╗██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗
- * ██║ █╗ ██║█████╗  ███████║   ██║   ███████║█████╗  ██████╔╝███████╗███████║██║█████╗  ██║     ██║  ██║
- * ██║███╗██║██╔══╝  ██╔══██║   ██║   ██╔══██║██╔══╝  ██╔══██╗╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
- * ╚███╔███╔╝███████╗██║  ██║   ██║   ██║  ██║███████╗██║  ██║███████║██║  ██║██║███████╗███████╗██████╔╝
- *  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
- */
+/*
+    WeatherShield - Parametric Weather Insurance
+
+    Built for Chainlink hackathon. Uses CRE to fetch weather data
+    and automatically pay out claims when conditions trigger.
+    
+    The idea: farmers/businesses pay a premium, pick a weather threshold,
+    and if conditions hit that threshold (drought, flood, etc), they get
+    paid automatically. No paperwork, no claims adjusters.
+*/
+
 contract WeatherShield is Ownable, ReentrancyGuard {
     
-    // ============ Enums ============
     enum PolicyStatus { Active, Claimed, Expired, Cancelled }
     enum WeatherType { Drought, Flood, Frost, Heat }
     
-    // ============ Structs ============
     struct Policy {
         address holder;
         uint256 premium;
@@ -30,34 +27,30 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         uint256 startTime;
         uint256 endTime;
         WeatherType weatherType;
-        int256 triggerThreshold;  // e.g., rainfall < 10mm or temp > 40C
-        string location;          // lat,lon format
+        int256 triggerThreshold;
+        string location; // lat,lon
         PolicyStatus status;
     }
     
     struct WeatherData {
-        int256 value;             // Weather measurement
+        int256 value;
         uint256 timestamp;
         bool isValid;
     }
     
-    // ============ State Variables ============
     uint256 public policyCounter;
     uint256 public totalPremiumsCollected;
     uint256 public totalPayouts;
     uint256 public minPremium = 0.001 ether;
-    uint256 public maxCoverageMultiplier = 10; // Max 10x premium as coverage
+    uint256 public maxCoverageMultiplier = 10;
     uint256 public policyDuration = 30 days;
     
-    // Authorized CRE workflow address
-    address public creAuthorized;
+    address public creAuthorized; // CRE workflow address
     
-    // Mappings
     mapping(uint256 => Policy) public policies;
     mapping(address => uint256[]) public userPolicies;
-    mapping(string => WeatherData) public latestWeatherData; // location => data
+    mapping(string => WeatherData) public latestWeatherData;
     
-    // ============ Events ============
     event PolicyCreated(
         uint256 indexed policyId,
         address indexed holder,
@@ -76,58 +69,42 @@ contract WeatherShield is Ownable, ReentrancyGuard {
     
     event PolicyExpired(uint256 indexed policyId);
     event PolicyCancelled(uint256 indexed policyId, uint256 refundAmount);
-    
-    event WeatherDataUpdated(
-        string location,
-        int256 value,
-        uint256 timestamp
-    );
-    
+    event WeatherDataUpdated(string location, int256 value, uint256 timestamp);
     event CREAuthorizedUpdated(address indexed newAddress);
     
-    // ============ Modifiers ============
     modifier onlyCRE() {
         require(
             msg.sender == creAuthorized || msg.sender == owner(),
-            "Not authorized: CRE or owner only"
+            "Not authorized"
         );
         _;
     }
     
     modifier policyExists(uint256 _policyId) {
-        require(_policyId < policyCounter, "Policy does not exist");
+        require(_policyId < policyCounter, "Policy doesn't exist");
         _;
     }
     
-    // ============ Constructor ============
     constructor() Ownable(msg.sender) {
-        creAuthorized = msg.sender; // Initially owner is CRE authorized
+        creAuthorized = msg.sender;
     }
     
-    // ============ Core Functions ============
-    
-    /**
-     * @notice Purchase a new insurance policy
-     * @param _weatherType Type of weather event to insure against
-     * @param _triggerThreshold The threshold that triggers payout
-     * @param _location Location in "latitude,longitude" format
-     */
+    // Buy insurance policy
     function purchasePolicy(
         WeatherType _weatherType,
         int256 _triggerThreshold,
         string calldata _location
     ) external payable nonReentrant returns (uint256 policyId) {
-        require(msg.value >= minPremium, "Premium below minimum");
-        require(bytes(_location).length > 0, "Location required");
+        require(msg.value >= minPremium, "Premium too low");
+        require(bytes(_location).length > 0, "Need location");
         
-        uint256 coverageAmount = msg.value * maxCoverageMultiplier;
-        
+        uint256 coverage = msg.value * maxCoverageMultiplier;
         policyId = policyCounter++;
         
         policies[policyId] = Policy({
             holder: msg.sender,
             premium: msg.value,
-            coverageAmount: coverageAmount,
+            coverageAmount: coverage,
             startTime: block.timestamp,
             endTime: block.timestamp + policyDuration,
             weatherType: _weatherType,
@@ -139,135 +116,85 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         userPolicies[msg.sender].push(policyId);
         totalPremiumsCollected += msg.value;
         
-        emit PolicyCreated(
-            policyId,
-            msg.sender,
-            msg.value,
-            coverageAmount,
-            _weatherType,
-            _location
-        );
+        emit PolicyCreated(policyId, msg.sender, msg.value, coverage, _weatherType, _location);
     }
     
-    /**
-     * @notice Update weather data - called by CRE workflow
-     * @param _location Location identifier
-     * @param _value Weather measurement value
-     */
-    function updateWeatherData(
-        string calldata _location,
-        int256 _value
-    ) external onlyCRE {
+    // CRE calls this to update weather
+    function updateWeatherData(string calldata _location, int256 _value) external onlyCRE {
         latestWeatherData[_location] = WeatherData({
             value: _value,
             timestamp: block.timestamp,
             isValid: true
         });
-        
         emit WeatherDataUpdated(_location, _value, block.timestamp);
     }
     
-    /**
-     * @notice Process claim - called by CRE workflow when trigger conditions are met
-     * @param _policyId The policy to process
-     * @param _currentValue Current weather value that triggered the claim
-     */
+    // CRE calls this when weather triggers a claim
     function processClaim(
         uint256 _policyId,
         int256 _currentValue
     ) external onlyCRE policyExists(_policyId) nonReentrant {
         Policy storage policy = policies[_policyId];
         
-        require(policy.status == PolicyStatus.Active, "Policy not active");
-        require(block.timestamp <= policy.endTime, "Policy expired");
-        require(
-            address(this).balance >= policy.coverageAmount,
-            "Insufficient contract balance"
-        );
+        require(policy.status == PolicyStatus.Active, "Not active");
+        require(block.timestamp <= policy.endTime, "Expired");
+        require(address(this).balance >= policy.coverageAmount, "Insufficient funds");
         
-        // Verify trigger condition based on weather type
-        bool triggered = _checkTrigger(
-            policy.weatherType,
-            _currentValue,
-            policy.triggerThreshold
-        );
-        require(triggered, "Trigger condition not met");
+        bool triggered = checkTrigger(policy.weatherType, _currentValue, policy.triggerThreshold);
+        require(triggered, "Conditions not met");
         
         policy.status = PolicyStatus.Claimed;
         totalPayouts += policy.coverageAmount;
         
-        // Transfer payout to policyholder
-        (bool success, ) = payable(policy.holder).call{value: policy.coverageAmount}("");
-        require(success, "Payout transfer failed");
+        (bool ok, ) = payable(policy.holder).call{value: policy.coverageAmount}("");
+        require(ok, "Transfer failed");
         
-        emit PolicyClaimed(
-            _policyId,
-            policy.holder,
-            policy.coverageAmount,
-            _currentValue
-        );
+        emit PolicyClaimed(_policyId, policy.holder, policy.coverageAmount, _currentValue);
     }
     
-    /**
-     * @notice Check if trigger condition is met
-     */
-    function _checkTrigger(
+    function checkTrigger(
         WeatherType _type,
-        int256 _currentValue,
+        int256 _current,
         int256 _threshold
     ) internal pure returns (bool) {
-        if (_type == WeatherType.Drought) {
-            // Drought: rainfall BELOW threshold (e.g., < 10mm)
-            return _currentValue < _threshold;
-        } else if (_type == WeatherType.Flood) {
-            // Flood: rainfall ABOVE threshold (e.g., > 100mm)
-            return _currentValue > _threshold;
-        } else if (_type == WeatherType.Frost) {
-            // Frost: temperature BELOW threshold (e.g., < 0°C)
-            return _currentValue < _threshold;
-        } else if (_type == WeatherType.Heat) {
-            // Heat: temperature ABOVE threshold (e.g., > 40°C)
-            return _currentValue > _threshold;
+        // drought/frost = value below threshold
+        // flood/heat = value above threshold
+        if (_type == WeatherType.Drought || _type == WeatherType.Frost) {
+            return _current < _threshold;
+        } else {
+            return _current > _threshold;
         }
-        return false;
     }
     
-    /**
-     * @notice Expire a policy that has passed its end time
-     */
     function expirePolicy(uint256 _policyId) external policyExists(_policyId) {
         Policy storage policy = policies[_policyId];
-        require(policy.status == PolicyStatus.Active, "Policy not active");
-        require(block.timestamp > policy.endTime, "Policy not yet expired");
+        require(policy.status == PolicyStatus.Active, "Not active");
+        require(block.timestamp > policy.endTime, "Not expired yet");
         
         policy.status = PolicyStatus.Expired;
         emit PolicyExpired(_policyId);
     }
     
-    /**
-     * @notice Cancel policy and get partial refund (before 50% of duration)
-     */
+    // can cancel within first half of policy period, get 50% back
     function cancelPolicy(uint256 _policyId) external nonReentrant policyExists(_policyId) {
         Policy storage policy = policies[_policyId];
-        require(msg.sender == policy.holder, "Not policy holder");
-        require(policy.status == PolicyStatus.Active, "Policy not active");
+        require(msg.sender == policy.holder, "Not your policy");
+        require(policy.status == PolicyStatus.Active, "Not active");
         
         uint256 elapsed = block.timestamp - policy.startTime;
         uint256 duration = policy.endTime - policy.startTime;
-        require(elapsed < duration / 2, "Cannot cancel after 50% duration");
+        require(elapsed < duration / 2, "Too late to cancel");
         
         policy.status = PolicyStatus.Cancelled;
         
-        // Refund 50% of premium
         uint256 refund = policy.premium / 2;
-        (bool success, ) = payable(policy.holder).call{value: refund}("");
-        require(success, "Refund transfer failed");
+        (bool ok, ) = payable(policy.holder).call{value: refund}("");
+        require(ok, "Refund failed");
         
         emit PolicyCancelled(_policyId, refund);
     }
     
-    // ============ View Functions ============
-    
+    // view funcs
     function getPolicy(uint256 _policyId) external view returns (Policy memory) {
         return policies[_policyId];
     }
@@ -292,47 +219,39 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         WeatherData storage weather = latestWeatherData[policy.location];
         if (!weather.isValid) return false;
         
-        return _checkTrigger(policy.weatherType, weather.value, policy.triggerThreshold);
+        return checkTrigger(policy.weatherType, weather.value, policy.triggerThreshold);
     }
     
-    // ============ Admin Functions ============
-    
-    function setCREAuthorized(address _creAuthorized) external onlyOwner {
-        require(_creAuthorized != address(0), "Invalid address");
-        creAuthorized = _creAuthorized;
-        emit CREAuthorizedUpdated(_creAuthorized);
+    // admin stuff
+    function setCREAuthorized(address _addr) external onlyOwner {
+        require(_addr != address(0), "Bad address");
+        creAuthorized = _addr;
+        emit CREAuthorizedUpdated(_addr);
     }
     
-    function setMinPremium(uint256 _minPremium) external onlyOwner {
-        minPremium = _minPremium;
+    function setMinPremium(uint256 _min) external onlyOwner {
+        minPremium = _min;
     }
     
-    function setMaxCoverageMultiplier(uint256 _multiplier) external onlyOwner {
-        require(_multiplier > 0 && _multiplier <= 20, "Invalid multiplier");
-        maxCoverageMultiplier = _multiplier;
+    function setMaxCoverageMultiplier(uint256 _mult) external onlyOwner {
+        require(_mult > 0 && _mult <= 20, "Invalid");
+        maxCoverageMultiplier = _mult;
     }
     
-    function setPolicyDuration(uint256 _duration) external onlyOwner {
-        require(_duration >= 1 days, "Duration too short");
-        policyDuration = _duration;
+    function setPolicyDuration(uint256 _dur) external onlyOwner {
+        require(_dur >= 1 days, "Too short");
+        policyDuration = _dur;
     }
     
-    /**
-     * @notice Deposit funds to cover potential payouts
-     */
     function depositFunds() external payable onlyOwner {
-        require(msg.value > 0, "Must deposit something");
+        require(msg.value > 0, "Send something");
     }
     
-    /**
-     * @notice Withdraw excess funds (only funds not needed for active policies)
-     */
-    function withdrawExcess(uint256 _amount) external onlyOwner nonReentrant {
-        require(_amount <= address(this).balance, "Insufficient balance");
-        (bool success, ) = payable(owner()).call{value: _amount}("");
-        require(success, "Withdrawal failed");
+    function withdrawExcess(uint256 _amt) external onlyOwner nonReentrant {
+        require(_amt <= address(this).balance, "Not enough");
+        (bool ok, ) = payable(owner()).call{value: _amt}("");
+        require(ok, "Withdraw failed");
     }
     
-    // ============ Receive Function ============
     receive() external payable {}
 }
