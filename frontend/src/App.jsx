@@ -210,16 +210,11 @@ function App() {
     if (!window.ethereum) return
     
     const handleChainChanged = (chainId) => {
-      // Check if it's the right network
+      // Just update network status, don't auto-reconnect
       if (chainId === ARBITRUM_SEPOLIA.chainId) {
         setNetworkOk(true)
-        // Reconnect if we have an account
-        if (account) {
-          connect()
-        }
       } else {
         setNetworkOk(false)
-        showMsg('Please switch to Arbitrum Sepolia', 'error')
       }
     }
     
@@ -228,9 +223,10 @@ function App() {
         setAccount(null)
         setContract(null)
         setNetworkOk(false)
-      } else if (accts[0] !== account) {
-        // Account changed, reconnect
-        connect()
+      } else {
+        // Just clear state, user must click connect again
+        setAccount(null)
+        setContract(null)
       }
     }
     
@@ -241,7 +237,7 @@ function App() {
       window.ethereum.removeListener('chainChanged', handleChainChanged)
       window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
     }
-  }, [account])
+  }, [])
 
   const statusLabels = ['Active', 'Claimed', 'Expired', 'Cancelled']
 
