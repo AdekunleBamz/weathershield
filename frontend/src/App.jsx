@@ -110,6 +110,15 @@ function App() {
     setLoading(false)
   }
   
+  function disconnect() {
+    setAccount(null)
+    setContract(null)
+    setNetworkOk(false)
+    setMyPolicies([])
+    setStats({ policies: 0, premiums: '0', payouts: '0', balance: '0' })
+    showMsg('Disconnected', 'info')
+  }
+  
   async function loadData(c, addr) {
     try {
       const [cnt, prem, pays, bal] = await Promise.all([
@@ -205,36 +214,20 @@ function App() {
     if (form.lat && form.lon) fetchWeather()
   }, [form.lat, form.lon])
   
-  // listen for network/account changes
+  // Only listen for disconnection - NO auto-connect
   useEffect(() => {
     if (!window.ethereum) return
     
-    const handleChainChanged = (chainId) => {
-      // Just update network status, don't auto-reconnect
-      if (chainId === ARBITRUM_SEPOLIA.chainId) {
-        setNetworkOk(true)
-      } else {
-        setNetworkOk(false)
-      }
-    }
-    
     const handleAccountsChanged = (accts) => {
+      // If user disconnects from MetaMask, clear our state
       if (accts.length === 0) {
-        setAccount(null)
-        setContract(null)
-        setNetworkOk(false)
-      } else {
-        // Just clear state, user must click connect again
-        setAccount(null)
-        setContract(null)
+        disconnect()
       }
     }
     
-    window.ethereum.on('chainChanged', handleChainChanged)
     window.ethereum.on('accountsChanged', handleAccountsChanged)
     
     return () => {
-      window.ethereum.removeListener('chainChanged', handleChainChanged)
       window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
     }
   }, [])
@@ -251,9 +244,16 @@ function App() {
               {networkOk ? 'Arbitrum Sepolia' : 'Wrong Network'}
             </span>
           )}
-          <button onClick={connect} disabled={loading}>
-            {loading ? '...' : account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'Connect'}
-          </button>
+          {account ? (
+            <>
+              <span className="account">{account.slice(0,6)}...{account.slice(-4)}</span>
+              <button onClick={disconnect} className="disconnect">Disconnect</button>
+            </>
+          ) : (
+            <button onClick={connect} disabled={loading}>
+              {loading ? '...' : 'Connect'}
+            </button>
+          )}
         </div>
       </header>
       
