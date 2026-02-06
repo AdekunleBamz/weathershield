@@ -59,6 +59,79 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+/* Header Right Section */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.network-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.network-badge.connected {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--secondary);
+  border: 1px solid var(--secondary);
+}
+
+.network-badge.wrong-network {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.switch-network-btn {
+  background: var(--warning);
+  color: #000;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.switch-network-btn:hover {
+  background: #D97706;
+  transform: translateY(-1px);
+}
+
+/* Network Warning Banner */
+.network-warning {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.network-warning button {
+  background: var(--danger);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.network-warning button:hover {
+  background: #DC2626;
+}
+
 .connect-btn {
   background: var(--primary);
   color: white;

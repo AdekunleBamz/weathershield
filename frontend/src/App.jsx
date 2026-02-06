@@ -2,8 +2,21 @@ import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import WeatherShieldABI from './abi/WeatherShield.json'
 
-// Contract address - update after deployment
-const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000'
+// Contract address - deployed on Arbitrum Sepolia
+const CONTRACT_ADDRESS = '0x0988119B3526C21129E0254f5E8bd995Bed51F6D'
+
+// Arbitrum Sepolia Network Configuration
+const ARBITRUM_SEPOLIA = {
+  chainId: '0x66eee', // 421614 in hex
+  chainName: 'Arbitrum Sepolia',
+  nativeCurrency: {
+    name: 'Ethereum',
+    symbol: 'ETH',
+    decimals: 18
+  },
+  rpcUrls: ['https://sepolia-rollup.arbitrum.io/rpc'],
+  blockExplorerUrls: ['https://sepolia.arbiscan.io/']
+}
 
 // Weather types
 const WEATHER_TYPES = [
@@ -28,6 +41,7 @@ function App() {
   const [contract, setContract] = useState(null)
   const [loading, setLoading] = useState(false)
   const [alert, setAlert] = useState(null)
+  const [networkOk, setNetworkOk] = useState(false)
   
   // Contract data
   const [stats, setStats] = useState({
@@ -41,7 +55,7 @@ function App() {
   // Form state
   const [formData, setFormData] = useState({
     weatherType: 0,
-    threshold: '',
+    threshold: '100',
     latitude: '40.7128',
     longitude: '-74.0060',
     premium: '0.01'
@@ -49,6 +63,54 @@ function App() {
   
   // Weather data
   const [weather, setWeather] = useState(null)
+
+  // Check and switch to Arbitrum Sepolia
+  const switchToArbitrumSepolia = async () => {
+    if (!window.ethereum) {
+      showAlert('Please install MetaMask!', 'error')
+      return false
+    }
+
+    try {
+      // Try to switch to Arbitrum Sepolia
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: ARBITRUM_SEPOLIA.chainId }]
+      })
+      setNetworkOk(true)
+      return true
+    } catch (switchError) {
+      // Chain not added - add it
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [ARBITRUM_SEPOLIA]
+          })
+          setNetworkOk(true)
+          return true
+        } catch (addError) {
+          console.error('Failed to add Arbitrum Sepolia:', addError)
+          showAlert('Failed to add Arbitrum Sepolia network. Please add it manually.', 'error')
+          return false
+        }
+      } else {
+        console.error('Failed to switch network:', switchError)
+        showAlert('Please switch to Arbitrum Sepolia network', 'error')
+        return false
+      }
+    }
+  }
+
+  // Check current network
+  const checkNetwork = async () => {
+    if (!window.ethereum) return false
+    
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' })
+    const isCorrectNetwork = chainId === ARBITRUM_SEPOLIA.chainId
+    setNetworkOk(isCorrectNetwork)
+    return isCorrectNetwork
+  }
 
   // Connect wallet
   const connectWallet = async () => {
@@ -59,10 +121,30 @@ function App() {
     
     try {
       setLoading(true)
+      
+      // Step 1: Request account access (this WILL trigger wallet popup)
+      showAlert('Please approve the connection in your wallet...', 'info')
       const accounts = await window.ethereum.request({ 
         method: 'eth_requestAccounts' 
       })
       
+      if (!accounts || accounts.length === 0) {
+        showAlert('No accounts found. Please unlock your wallet.', 'error')
+        return
+      }
+      
+      // Step 2: Check and switch network
+      const isCorrectNetwork = await checkNetwork()
+      if (!isCorrectNetwork) {
+        showAlert('Switching to Arbitrum Sepolia network...', 'info')
+        const switched = await switchToArbitrumSepolia()
+        if (!switched) {
+          showAlert('Please switch to Arbitrum Sepolia to use this app', 'error')
+          return
+        }
+      }
+      
+      // Step 3: Setup provider and contract
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, WeatherShieldABI.abi, signer)
@@ -71,17 +153,58 @@ function App() {
       setProvider(provider)
       setContract(contract)
       
-      showAlert('Wallet connected!', 'success')
+      showAlert(`Connected to Arbitrum Sepolia! Address: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, 'success')
       
       // Load data
       await loadContractData(contract, accounts[0])
     } catch (error) {
-      console.error(error)
-      showAlert('Failed to connect wallet', 'error')
+      console.error('Connect wallet error:', error)
+      if (error.code === 4001) {
+        showAlert('Connection rejected. Please approve the connection in your wallet.', 'error')
+      } else {
+        showAlert('Failed to connect wallet: ' + (error.message || 'Unknown error'), 'error')
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  // Listen for network changes
+  useEffect(() => {
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', (chainId) => {
+        console.log('Network changed to:', chainId)
+        if (chainId !== ARBITRUM_SEPOLIA.chainId) {
+          setNetworkOk(false)
+          showAlert('Please switch back to Arbitrum Sepolia', 'error')
+        } else {
+          setNetworkOk(true)
+          showAlert('Connected to Arbitrum Sepolia', 'success')
+          // Reload the page to reset state
+          window.location.reload()
+        }
+      })
+
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0) {
+          setAccount(null)
+          setContract(null)
+          showAlert('Wallet disconnected', 'info')
+        } else {
+          setAccount(accounts[0])
+          showAlert(`Switched to account: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, 'info')
+          window.location.reload()
+        }
+      })
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeAllListeners('chainChanged')
+        window.ethereum.removeAllListeners('accountsChanged')
+      }
+    }
+  }, [])
 
   // Load contract data
   const loadContractData = async (contractInstance, userAddress) => {
@@ -154,8 +277,22 @@ function App() {
       setLoading(true)
       
       const location = `${formData.latitude},${formData.longitude}`
-      const threshold = parseInt(formData.threshold)
-      const premium = ethers.parseEther(formData.premium)
+      const threshold = parseInt(formData.threshold) || 100
+      const premium = ethers.parseEther(formData.premium || '0.01')
+      
+      // Validate inputs
+      if (isNaN(threshold) || threshold <= 0) {
+        showAlert('Please enter a valid threshold value', 'error')
+        setLoading(false)
+        return
+      }
+      
+      console.log('Purchasing policy:', {
+        weatherType: formData.weatherType,
+        threshold,
+        location,
+        premium: formData.premium
+      })
       
       const tx = await contract.purchasePolicy(
         formData.weatherType,
@@ -198,20 +335,6 @@ function App() {
     }
   }, [formData.latitude, formData.longitude])
 
-  // Listen for account changes
-  useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts) => {
-        if (accounts.length > 0) {
-          setAccount(accounts[0])
-          if (contract) loadContractData(contract, accounts[0])
-        } else {
-          setAccount(null)
-        }
-      })
-    }
-  }, [contract])
-
   return (
     <div className="app">
       {/* Header */}
@@ -220,20 +343,45 @@ function App() {
           <img src="/shield.svg" alt="WeatherShield" />
           <h1>WeatherShield</h1>
         </div>
-        <button 
-          className={`connect-btn ${account ? 'connected' : ''}`}
-          onClick={connectWallet}
-          disabled={loading}
-        >
-          {loading ? (
-            <span className="spinner"></span>
-          ) : account ? (
-            `${account.slice(0, 6)}...${account.slice(-4)}`
-          ) : (
-            'Connect Wallet'
+        <div className="header-right">
+          {/* Network Badge */}
+          <div className={`network-badge ${networkOk ? 'connected' : 'wrong-network'}`}>
+            {networkOk ? '🟢 Arbitrum Sepolia' : '🔴 Wrong Network'}
+          </div>
+          {/* Switch Network Button (shown when on wrong network and connected) */}
+          {account && !networkOk && (
+            <button 
+              className="switch-network-btn"
+              onClick={switchToArbitrumSepolia}
+              disabled={loading}
+            >
+              Switch Network
+            </button>
           )}
-        </button>
+          {/* Connect/Account Button */}
+          <button 
+            className={`connect-btn ${account ? 'connected' : ''}`}
+            onClick={connectWallet}
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="spinner"></span>
+            ) : account ? (
+              `${account.slice(0, 6)}...${account.slice(-4)}`
+            ) : (
+              '🔗 Connect Wallet'
+            )}
+          </button>
+        </div>
       </header>
+
+      {/* Network Warning Banner */}
+      {account && !networkOk && (
+        <div className="network-warning">
+          ⚠️ Please switch to <strong>Arbitrum Sepolia</strong> network to use this dApp.
+          <button onClick={switchToArbitrumSepolia}>Switch Now</button>
+        </div>
+      )}
 
       {/* Alert */}
       {alert && (

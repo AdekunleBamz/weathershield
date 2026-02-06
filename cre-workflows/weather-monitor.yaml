@@ -30,6 +30,7 @@ inputs:
   contract_address:
     type: string
     description: "WeatherShield contract address"
+    default: "0x0988119B3526C21129E0254f5E8bd995Bed51F6D"
     
   # Location to monitor (latitude,longitude)
   location:

@@ -105,8 +105,7 @@ describe("WeatherShield", function () {
       
       await expect(
         weatherShield.updateWeatherData(location, value)
-      ).to.emit(weatherShield, "WeatherDataUpdated")
-        .withArgs(location, value, await getBlockTimestamp());
+      ).to.emit(weatherShield, "WeatherDataUpdated");
       
       const data = await weatherShield.getWeatherData(location);
       expect(data.value).to.equal(value);

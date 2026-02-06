@@ -115,13 +115,10 @@ WeatherShield uses **Chainlink Compute Runtime Environment (CRE)** as the orches
 weathershield/
 ├── contracts/                    # Solidity smart contracts
 │   ├── WeatherShield.sol        # Main insurance contract ⭐
-│   ├── interfaces/
-│   │   └── IWeatherShield.sol   # Contract interface
-│   └── mocks/
-│       └── MockWeatherOracle.sol # Testing mock
+│   └── interfaces/
+│       └── IWeatherShield.sol   # Contract interface for CRE
 ├── cre-workflows/               # Chainlink CRE workflows ⭐
-│   ├── weather-monitor.yaml     # Main monitoring workflow ⭐
-│   └── batch-monitor.yaml       # Batch processing workflow
+│   └── weather-monitor.yaml     # Main monitoring workflow ⭐
 ├── frontend/                    # React + Vite frontend
 │   ├── src/
 │   │   ├── App.jsx             # Main application
@@ -130,14 +127,23 @@ weathershield/
 │   └── package.json
 ├── scripts/
 │   ├── deploy.js               # Deployment script
-│   ├── cre-simulate.js         # CRE workflow simulator ⭐
-│   └── interact.js             # Contract interaction
+│   └── cre-simulate.js         # CRE workflow simulator ⭐
 ├── test/
-│   └── WeatherShield.test.js   # Comprehensive tests
+│   └── WeatherShield.test.cjs  # Comprehensive tests
 ├── cre.config.yaml             # CRE configuration ⭐
 ├── hardhat.config.cjs          # Hardhat configuration
 └── package.json
 ```
+
+---
+
+## 🌐 Deployed Contract
+
+| Network | Contract Address |
+|---------|-----------------|
+| **Arbitrum Sepolia** | `0x0988119B3526C21129E0254f5E8bd995Bed51F6D` |
+
+**Block Explorer:** [View on Arbiscan](https://sepolia.arbiscan.io/address/0x0988119B3526C21129E0254f5E8bd995Bed51F6D)
 
 ---
 
