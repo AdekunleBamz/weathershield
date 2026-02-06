@@ -89,7 +89,11 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         creAuthorized = msg.sender;
     }
     
-    // Buy insurance policy
+    /// @notice Purchase a weather insurance policy
+    /// @param _weatherType Type of weather event (0=Drought, 1=Flood, 2=Frost, 3=Heat)
+    /// @param _triggerThreshold Value that triggers payout (scaled by 10, e.g. 100 = 10.0mm or 10.0°C)
+    /// @param _location GPS coordinates in "lat,lon" format
+    /// @return policyId The ID of the newly created policy
     function purchasePolicy(
         WeatherType _weatherType,
         int256 _triggerThreshold,
@@ -119,7 +123,9 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         emit PolicyCreated(policyId, msg.sender, msg.value, coverage, _weatherType, _location);
     }
     
-    // CRE calls this to update weather
+    /// @notice Update weather data for a location (CRE workflow only)
+    /// @param _location GPS coordinates in "lat,lon" format
+    /// @param _value Weather reading scaled by 10 (e.g. 235 = 23.5°C)
     function updateWeatherData(string calldata _location, int256 _value) external onlyCRE {
         latestWeatherData[_location] = WeatherData({
             value: _value,
@@ -129,7 +135,9 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         emit WeatherDataUpdated(_location, _value, block.timestamp);
     }
     
-    // CRE calls this when weather triggers a claim
+    /// @notice Process insurance claim when trigger conditions are met (CRE workflow only)
+    /// @param _policyId ID of the policy to process
+    /// @param _currentValue Current weather value that triggered the claim
     function processClaim(
         uint256 _policyId,
         int256 _currentValue
@@ -211,6 +219,9 @@ contract WeatherShield is Ownable, ReentrancyGuard {
         return address(this).balance;
     }
     
+    /// @notice Check if a policy's trigger conditions are currently met
+    /// @param _policyId ID of the policy to check
+    /// @return True if weather conditions meet the trigger threshold
     function isPolicyClaimable(uint256 _policyId) external view policyExists(_policyId) returns (bool) {
         Policy storage policy = policies[_policyId];
         if (policy.status != PolicyStatus.Active) return false;

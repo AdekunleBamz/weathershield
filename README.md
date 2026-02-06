@@ -122,6 +122,8 @@ The `weather-monitor.yaml` workflow runs every 6 hours:
 | Frost | temperature < threshold | Below 0°C |
 | Heat | temperature > threshold | Above 40°C |
 
+> 📖 For detailed CRE workflow explanation, see [docs/workflow-explained.md](docs/workflow-explained.md)
+
 ---
 
 ## 🚀 Quick Start
@@ -174,6 +176,11 @@ weathershield/
 │       └── IWeatherShield.sol     # Interface for CRE
 ├── cre-workflows/
 │   └── weather-monitor.yaml       # CRE workflow definition
+├── docs/
+│   ├── workflow-explained.md      # CRE workflow deep dive
+│   ├── use-cases.md               # Real-world applications
+│   ├── security-notes.md          # Security considerations
+│   └── demo-script.md             # Demo recording guide
 ├── frontend/                       # React app
 ├── scripts/
 │   ├── deploy.js                  # Deployment script
