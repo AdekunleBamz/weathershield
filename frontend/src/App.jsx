@@ -83,7 +83,10 @@ function App() {
       const chainId = await window.ethereum.request({ method: 'eth_chainId' })
       if (chainId !== ARBITRUM_SEPOLIA.chainId) {
         showMsg('Switching network...', 'info')
-        if (!await switchNetwork()) return
+        if (!await switchNetwork()) {
+          setLoading(false)
+          return
+        }
       }
       setNetworkOk(true)
       
@@ -206,21 +209,39 @@ function App() {
   useEffect(() => {
     if (!window.ethereum) return
     
-    window.ethereum.on('chainChanged', () => window.location.reload())
-    window.ethereum.on('accountsChanged', accts => {
+    const handleChainChanged = (chainId) => {
+      // Check if it's the right network
+      if (chainId === ARBITRUM_SEPOLIA.chainId) {
+        setNetworkOk(true)
+        // Reconnect if we have an account
+        if (account) {
+          connect()
+        }
+      } else {
+        setNetworkOk(false)
+        showMsg('Please switch to Arbitrum Sepolia', 'error')
+      }
+    }
+    
+    const handleAccountsChanged = (accts) => {
       if (accts.length === 0) {
         setAccount(null)
         setContract(null)
-      } else {
-        window.location.reload()
+        setNetworkOk(false)
+      } else if (accts[0] !== account) {
+        // Account changed, reconnect
+        connect()
       }
-    })
+    }
+    
+    window.ethereum.on('chainChanged', handleChainChanged)
+    window.ethereum.on('accountsChanged', handleAccountsChanged)
     
     return () => {
-      window.ethereum.removeAllListeners('chainChanged')
-      window.ethereum.removeAllListeners('accountsChanged')
+      window.ethereum.removeListener('chainChanged', handleChainChanged)
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
     }
-  }, [])
+  }, [account])
 
   const statusLabels = ['Active', 'Claimed', 'Expired', 'Cancelled']
 
