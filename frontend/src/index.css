@@ -157,8 +157,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 0;
-  margin-bottom: 40px;
+  padding: 10px 0;
+  margin-bottom: 12px;
   position: relative;
 }
 
@@ -169,11 +169,11 @@ body {
 }
 
 .logo-icon {
-  font-size: 32px;
+  font-size: 24px;
 }
 
 .header h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   background: linear-gradient(to right, #60a5fa, #34d399);
   -webkit-background-clip: text;
@@ -375,17 +375,17 @@ button {
 /* ── Stats Grid ─────────────────────────────────────────────────────── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-bottom: 30px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .stat-card {
   background: var(--bg-card);
   backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  padding: 20px;
-  border-radius: 16px;
+  padding: 12px;
+  border-radius: 12px;
   animation: fadeInUp 0.4s ease-out forwards;
   transition: transform 0.2s, border-color 0.2s;
 }
@@ -397,15 +397,15 @@ button {
 
 .stat-card label {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .stat-card .stat-value {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   animation: countUp 0.6s ease-out forwards;
 }
@@ -426,7 +426,7 @@ button {
 /* ── Main Layout ────────────────────────────────────────────────────── */
 .action-grid {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 3fr 2fr;
   gap: 24px;
 }
 
@@ -441,39 +441,39 @@ button {
   background: var(--bg-card);
   backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  padding: 20px;
-  border-radius: 20px;
+  padding: 14px 16px;
+  border-radius: 14px;
   height: fit-content;
   animation: fadeInUp 0.5s ease-out forwards;
 }
 
 .create-policy-card h2 {
-  font-size: 17px;
+  font-size: 15px;
   margin-bottom: 2px;
 }
 
 .subtitle {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .form-group {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .form-group label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 3px;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 8px;
 }
 
 input,
@@ -482,9 +482,9 @@ select {
   background: var(--bg-input);
   border: 1px solid var(--glass-border);
   color: white;
-  padding: 12px;
+  padding: 8px 10px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -567,10 +567,10 @@ select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
 }
 
 .risk-preview.low {
@@ -617,11 +617,11 @@ select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 10px 12px;
   background: rgba(59, 130, 246, 0.1);
-  border-radius: 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
 }
 
 .coverage-preview .highlight {
@@ -638,9 +638,9 @@ select:focus {
   width: 100%;
   background: linear-gradient(135deg, var(--primary), #2563eb);
   color: white;
-  padding: 14px;
-  border-radius: 12px;
-  font-size: 16px;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
@@ -660,11 +660,11 @@ select:focus {
 .weather-display {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 8px 10px;
   background: rgba(15, 23, 42, 0.4);
-  border-radius: 12px;
-  margin-bottom: 20px;
+  border-radius: 8px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
