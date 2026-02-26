@@ -7,7 +7,7 @@ networks:
 
 contracts:
   weathershield:
-    address: "0x0988119B3526C21129E0254f5E8bd995Bed51F6D"
+    address: "0x85A61e33CA36d1b52A74f9E4E4d4F363685F0bB2"
     network: arbitrum-sepolia
 
 workflows:

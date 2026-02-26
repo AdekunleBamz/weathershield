@@ -2,13 +2,14 @@
 
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
 [![Chainlink](https://img.shields.io/badge/Chainlink-CRE-375BD2?logo=chainlink)](https://chain.link/)
+[![Tests](https://img.shields.io/badge/Tests-33%20Passing-22c55e)](test/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Parametric weather insurance that pays out automatically when conditions hit a threshold. No claims process, no paperwork, no waiting around.**
+**Parametric weather insurance protocol with automatic payouts powered by Chainlink CRE, multi-source weather aggregation, NFT policies, liquidity pool, and LP governance.**
 
-> I built WeatherShield to solve a real problem — crop insurance is slow, expensive, and unfair. This protocol uses Chainlink CRE to pull weather data and trigger on-chain payouts automatically. No backend server, no middleman.
+> I built WeatherShield to solve a real problem — crop insurance is slow, expensive, and unfair. This protocol uses Chainlink CRE to pull weather data from 3 sources, aggregate via median, and trigger on-chain payouts automatically. No backend server, no middleman.
 
-> Built for Chainlink Block Magic Hackathon 2026 — DeFi Track
+> Built for Chainlink Block Magic Hackathon 2026 — DeFi & Tokenization Track
 
 ---
 
@@ -18,7 +19,23 @@
 |----------|------|
 | **Live App** | [weathershield-app.vercel.app](https://weathershield-app.vercel.app) |
 | **Video Demo** | [YouTube](https://youtu.be/_lRcvZZ_p_s) |
-| **Contract** | [Arbiscan](https://sepolia.arbiscan.io/address/0x0988119B3526C21129E0254f5E8bd995Bed51F6D) |
+| **Contract** | [Arbiscan](https://sepolia.arbiscan.io/address/0x85A61e33CA36d1b52A74f9E4E4d4F363685F0bB2) |
+| **Price Feed Mock** | [Arbiscan](https://sepolia.arbiscan.io/address/0x8cc290F69e47D6dCFF7bDB674Cd1f3ec01d65284) |
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔗 **Chainlink ETH/USD Price Feed** | USD-denominated premiums via `AggregatorV3Interface` |
+| 🌐 **Multi-Source Weather** | 3 APIs (Open-Meteo + WeatherAPI + Visual Crossing) → median aggregation |
+| 📊 **Risk-Based Pricing** | 4 tiers (Low 12×, Medium 10×, High 8×, Critical 6×) based on threshold severity |
+| 🖼️ **ERC-721 Policy NFTs** | On-chain SVG metadata, soulbound while Active, tradeable after expiry |
+| 💧 **Liquidity Pool** | Anyone can provide coverage capital, earn yield from premiums (80/20 split) |
+| 🏛️ **LP Governance** | LP-weighted voting on protocol parameters (minPremium, duration, fees) |
+| ⚡ **CRE Automation** | Weather checked every 6 hours, claims processed automatically |
+| 🧪 **33 Tests** | Full coverage: price feed, risk tiers, NFTs, pool, governance, claims |
 
 ---
 
@@ -32,67 +49,114 @@
 
 ## The Problem
 
-I looked into how crop insurance works and it's honestly terrible:
+Crop insurance is terrible:
 - Claims take weeks or months
 - Farmers have to prove damage with paperwork
 - Adjusters make subjective calls
 - Admin costs eat into payouts
-- In many developing countries, it's just not available at all
+- In developing countries, it's just not available
 
 ## The Solution
 
-WeatherShield uses **parametric insurance** — the idea is simple: if weather conditions cross a threshold, the payout happens automatically. No claim forms, no inspectors, no delays.
-
-- Funds arrive in minutes, not months
-- Trigger conditions are transparent and on-chain
-- Works for any location with weather data
-
-Parametric insurance is already being used in developing countries by organizations like the World Food Programme. I wanted to bring that model on-chain and let Chainlink CRE handle the automation part.
+WeatherShield uses **parametric insurance** — if weather conditions cross a threshold, payout happens automatically. No claim forms, no inspectors, no delays.
 
 ---
 
 ## ✅ CRE Quota Compliance
 
-WeatherShield fully implements **Chainlink Runtime Environment (CRE) service quotas** for production-ready workflows.
+WeatherShield fully implements **Chainlink Runtime Environment (CRE) service quotas**.
 
 | Quota | Status | Details |
 |-------|--------|---------|
-| Execution Timeout | ✅ | 2-3s actual vs 5-min limit (150x safety margin) |
-| HTTP Response Size | ✅ | 0.7 KB actual vs 100 KB limit (130x safety margin) |
-| EVM Gas Limit | ✅ | 500K per transaction vs 5M limit (10x safety margin) |
-| Concurrent Capabilities | ✅ | 3 used (HTTP, Compute, EVM) = at limit but compliant |
-| Cron Schedule | ✅ | 6 hours vs 30s minimum (720x safety margin) |
+| Execution Timeout | ✅ | ~2s actual vs 5-min limit |
+| HTTP Response Size | ✅ | ~2.7 KB total vs 100 KB/request limit |
+| EVM Gas Limit | ✅ | 500K per tx vs 5M limit |
+| Concurrent Capabilities | ✅ | 3 used (HTTP, Compute, EVM) |
+| Cron Schedule | ✅ | 6 hours vs 30s minimum |
 
 **Verify Locally:**
 ```bash
 npm run cre:simulate
 ```
 
-**Detailed Documentation:**
-- [CRE Quota Compliance Audit](./docs/CRE_QUOTA_COMPLIANCE.md) — 9 categories, full breakdown
-- [Implementation Summary](./IMPLEMENTATION_SUMMARY.md) — All changes + verification
-- [Quota Status](./CRE_QUOTA_STATUS.md) — Quick reference + test results
+<details>
+<summary>CRE Simulation Output</summary>
+
+```
+╔══════════════════════════════════════════════════════════╗
+║       WeatherShield CRE Simulation (Multi-Source)       ║
+╚══════════════════════════════════════════════════════════╝
+
+📍 Location: 40.7128, -74.006
+🌦️  Type: Drought (0)
+📊 Threshold: 100
+
+── CRE Quota Compliance ──────────────────────────────────
+✓ Cron schedule: 6 hours (exceeds 30s minimum)
+✓ Concurrent capabilities: 3/3 max (HTTP, EVM write, EVM read)
+
+── Fetching Weather Data ─────────────────────────────────
+  [1/3] Open-Meteo (live)...
+    ✓ 0.74 KB | precip=0mm, max=5.1°C, min=-3.7°C
+  [2/3] WeatherAPI (simulated)...
+    ✓ 0.80 KB | precip=0.0mm, max=5.0°C, min=-3.7°C
+  [3/3] Visual Crossing (simulated)...
+    ✓ 1.20 KB | precip=0.0mm, max=4.7°C, min=-3.6°C
+
+  All sources: ✓ 3/3 fetched
+  ✓ Total HTTP response size: 2.74 KB (limit: 100 KB each)
+
+── Multi-Source Aggregation ──────────────────────────────
+  Values: [0, 0, 0]
+  Median: 0 (0 mm)
+
+── Contract Interaction ──────────────────────────────────
+  ✓ updateWeatherDataMultiSource("40.7128,-74.006", 0, 0, 0)
+  ✓ EVM write gas: ~500,000 (limit: 5,000,000)
+
+── Trigger Evaluation ───────────────────────────────────
+  Condition: 0 < 100? YES ✓
+
+── Execution Summary ────────────────────────────────────
+  ✓ Execution time: 2.53s (limit: 300s)
+  ✓ Sources used: 3 (Open-Meteo + WeatherAPI + Visual Crossing)
+  ✓ Aggregation: Median
+
+  🚨 CLAIM WOULD TRIGGER — payout would be processed
+
+═══════════════════════════════════════════════════════════
+  All CRE Service Quotas SATISFIED ✓
+═══════════════════════════════════════════════════════════
+```
+
+</details>
 
 ---
 
 ## Chainlink Integration
 
-CRE is what makes this project work without a backend. Here are the key files:
+### Data Feeds — ETH/USD Price Feed
 
-- **Workflow**: [cre-workflows/weather-monitor.yaml](cre-workflows/weather-monitor.yaml) — the actual CRE workflow definition (with quota compliance config)
-- **Contract**: [contracts/WeatherShield.sol](contracts/WeatherShield.sol) — protected by an `onlyCRE` modifier (with quota constants)
-- **Simulation**: [scripts/cre-simulate.js](scripts/cre-simulate.js) — I wrote this to test the CRE logic locally (with automatic quota validation)
-- **Config**: [cre.config.yaml](cre.config.yaml)
+The contract integrates `AggregatorV3Interface` for real-time ETH/USD pricing:
+- Premiums and coverage displayed in USD throughout the frontend
+- `getEthUsdPrice()` and `ethToUsd()` available for on-chain conversion
+- Deployed with mock aggregator on Arbitrum Sepolia (simulating $2,000 ETH)
 
-## Why Chainlink CRE?
+### CRE — Multi-Source Weather Automation
 
-I needed something that could:
-- Fetch weather data on a schedule without me running a server
-- Check trigger conditions and call the contract automatically
-- Do all of this without a centralized backend
-- **Operate within institutional-grade quotas and safety limits** ✓
+| Step | Action | Details |
+|------|--------|---------|
+| 1 | **Fetch ×3** | Parallel HTTP requests to Open-Meteo, WeatherAPI, Visual Crossing |
+| 2 | **Aggregate** | Calculate median of 3 readings for tamper resistance |
+| 3 | **Update** | Call `updateWeatherDataMultiSource()` with all 3 values |
+| 4 | **Check** | Call `isPolicyClaimable()` for active policies |
+| 5 | **Payout** | If triggered, call `processClaim()` |
 
-CRE handles all of this. Without it, I'd need to run my own server with a cron job polling the weather API and submitting transactions — that's a single point of failure and defeats the purpose of building on-chain.
+Key files:
+- [cre-workflows/weather-monitor.yaml](cre-workflows/weather-monitor.yaml) — YAML workflow definition
+- [cre-workflow/src/workflow.ts](cre-workflow/src/workflow.ts) — TypeScript CRE SDK implementation
+- [scripts/cre-simulate.js](scripts/cre-simulate.js) — local simulation with quota validation
+- [cre.config.yaml](cre.config.yaml) — CRE configuration
 
 ---
 
@@ -102,34 +166,56 @@ CRE handles all of this. Without it, I'd need to run my own server with a cron j
   <img src="./docs/architecture.png" alt="WeatherShield Architecture" width="700"/>
 </p>
 
+### Risk-Based Pricing
+
+Coverage multiplier is dynamically determined by weather type and threshold severity:
+
+| Risk Tier | Multiplier | Example |
+|-----------|-----------|---------|
+| 🟢 Low | 12× premium | Drought threshold ≤20mm (unlikely to trigger) |
+| 🔵 Medium | 10× premium | Drought threshold ≤50mm |
+| 🟡 High | 8× premium | Drought threshold ≤100mm |
+| 🔴 Critical | 6× premium | Drought threshold >100mm (very likely to trigger) |
+
+### Policy NFTs (ERC-721)
+
+- Each policy mints an NFT with **on-chain SVG** artwork
+- **Soulbound while Active** — cannot be transferred during coverage period
+- **Tradeable after expiry/claim** — becomes a collectible receipt
+- Full metadata: weather type, status, location, policy ID
+
+### Liquidity Pool
+
+- LPs deposit ETH → receive pro-rata shares
+- Premiums distributed: **80% to LPs**, 20% protocol fee
+- Withdrawals limited to unreserved funds (funds backing active policies are locked)
+- `getLPValue()` shows current position value including earned yield
+
+### Governance
+
+- **LP-weighted voting** — shares = voting power (no separate governance token)
+- Propose changes to: `minPremium`, `policyDuration`, `protocolFeePercent`
+- 3-day voting period, 25% quorum required
+- Proposals auto-execute when conditions are met
+
 ---
 
 ## How It Works
 
 ### User Flow
-1. Connect wallet — app asks to switch to Arbitrum Sepolia if needed
+1. Connect wallet → app switches to Arbitrum Sepolia if needed
 2. Pick a coverage type — drought, flood, frost, or heat
-3. Set a threshold — like "pay me if rainfall drops below 10mm"
-4. Pay a premium — coverage is 10x whatever premium is paid
-5. CRE monitors weather every 6 hours
-6. If conditions trigger, payout lands in the wallet automatically
-
-### CRE Workflow
-
-The `weather-monitor.yaml` workflow kicks off every 6 hours:
-
-| Step | Action | Details |
-|------|--------|---------|
-| 1 | **Fetch** | HTTP GET to Open-Meteo API for weather |
-| 2 | **Transform** | Convert readings to int256 (scaled by 10) |
-| 3 | **Update** | Call `updateWeatherData()` on contract |
-| 4 | **Check** | Call `isPolicyClaimable()` for active policies |
-| 5 | **Payout** | If triggered, call `processClaim()` |
+3. Choose a city (10 presets) or enter custom coordinates
+4. Set threshold — risk tier and coverage multiplier shown in real-time
+5. Pay premium in ETH — USD equivalent shown via Chainlink price feed
+6. NFT policy minted to your wallet
+7. CRE monitors weather every 6 hours from 3 sources
+8. If conditions trigger, payout lands automatically
 
 ### Trigger Logic
 
 | Type | Condition | Example |
-|------|-----------|---------|
+|------|-----------|---------| 
 | Drought | rainfall < threshold | Less than 10mm rain |
 | Flood | rainfall > threshold | More than 100mm rain |
 | Frost | temp < threshold | Below 0°C |
@@ -137,24 +223,12 @@ The `weather-monitor.yaml` workflow kicks off every 6 hours:
 
 ---
 
-## Use Cases
-
-**Farmers** — A farmer buys drought protection before planting season. If rainfall drops below their threshold, they get paid automatically.
-
-**Event Organizers** — Running an outdoor festival? Buy rain or heat cover. If the weather ruins the event, payout helps cover refund costs.
-
-**Supply Chain** — Shipping temperature-sensitive goods? Set a frost trigger. If temps drop during transit, payout covers the spoilage.
-
-**Renewable Energy** — Could be extended to hedge against low solar or wind output (not built yet, but the contract supports it).
-
----
-
 ## Quick Start
 
-### What I used
+### Requirements
 - Node.js 18+
-- MetaMask (or any EVM wallet)
-- Arbitrum Sepolia ETH — grab some from the [faucet](https://faucet.quicknode.com/arbitrum/sepolia)
+- MetaMask
+- Arbitrum Sepolia ETH — [faucet](https://faucet.quicknode.com/arbitrum/sepolia)
 
 ### Install
 
@@ -171,7 +245,7 @@ cd frontend && npm install && cd ..
 npx hardhat test
 ```
 
-> 11 tests passing — covers policy creation, claims, access control, and edge cases.
+> 33 tests passing — covers deployment, price feed, risk pricing, NFT policies, multi-source weather, claims, cancellation, liquidity pool, and governance.
 
 ### Run Frontend
 
@@ -181,101 +255,87 @@ cd frontend && npm run dev
 
 ### Simulate CRE Workflow
 
-I built a simulation script ([scripts/cre-simulate.js](scripts/cre-simulate.js)) to test the CRE logic locally without deploying a workflow:
-
 ```bash
-node scripts/cre-simulate.js
-node scripts/cre-simulate.js --type 0 --threshold 100
-node scripts/cre-simulate.js --lat 34.05 --lon -118.24 --type 3
+npm run cre:simulate
+node scripts/cre-simulate.js --type 3 --threshold 350 --lat 6.52 --lon 3.38
 ```
-
-<details>
-<summary>Example output</summary>
-
-```
---- WeatherShield CRE Simulation ---
-
-Location: 40.7128, -74.006
-Type: Drought (0)
-Threshold: 100
-
-Fetching weather from Open-Meteo...
-
-Weather data:
-  Temp: -4.4°C
-  Rain: 0mm
-  Daily precip: 0mm
-  Daily max: -1.4°C
-  Daily min: -9.8°C
-
-Contract value: 0 (0mm)
-Trigger: value < 100? YES
-
-✓ CLAIM WOULD TRIGGER
-```
-
-</details>
 
 ---
 
 ## Project Structure
 
-- [contracts/WeatherShield.sol](contracts/WeatherShield.sol) — the main contract, handles policies and payouts
-- [cre-workflows/weather-monitor.yaml](cre-workflows/weather-monitor.yaml) — CRE workflow that checks weather every 6 hours
-- [frontend/](frontend/) — React + Vite dashboard
-- [scripts/cre-simulate.js](scripts/cre-simulate.js) — my local simulation script for testing CRE logic
-- [test/WeatherShield.test.cjs](test/WeatherShield.test.cjs) — 11 tests covering the important stuff
-- [cre.config.yaml](cre.config.yaml) — CRE config
+```
+contracts/
+├── WeatherShield.sol          # Main contract (ERC-721, pool, governance)
+├── interfaces/IWeatherShield.sol
+└── mocks/MockV3Aggregator.sol # Chainlink price feed mock
+
+cre-workflows/
+└── weather-monitor.yaml       # CRE YAML workflow (3-source)
+
+cre-workflow/
+└── src/workflow.ts            # CRE TypeScript SDK workflow
+
+frontend/src/
+├── App.jsx                    # Main app with tabs (Policies/Pool/Governance)
+├── components/
+│   ├── Header.jsx             # Mobile nav, ETH price badge, tabs
+│   ├── CreatePolicy.jsx       # City picker, risk preview, USD pricing
+│   ├── PolicyCard.jsx         # Progress bar, NFT badge, risk tier
+│   ├── Stats.jsx              # Skeleton loading, USD conversion
+│   ├── WeatherDisplay.jsx     # Multi-source badge, daily data
+│   ├── LocationPicker.jsx     # 10 city presets
+│   ├── LiquidityPool.jsx      # Deposit/withdraw, pool stats
+│   └── Governance.jsx         # Proposals, voting, execution
+└── index.css                  # Glassmorphism + animations
+
+scripts/
+└── cre-simulate.js            # Multi-source CRE simulation
+
+test/
+└── WeatherShield.test.cjs     # 33 tests
+```
 
 ---
 
 ## Security
 
-A few things I made sure to get right:
+- **Access control** — `onlyCRE` modifier restricts weather updates and claims
+- **Reentrancy** — OpenZeppelin `ReentrancyGuard` on all ETH transfers
+- **Soulbound NFTs** — active policies cannot be transferred (prevents gaming)
+- **LP withdrawal limits** — funds backing active policies are locked
+- **Governance safeguards** — 3-day voting period, 25% quorum, max 50% fee cap
 
-- **Access control** — only the CRE-authorized address (or contract owner) can update weather data or process claims. There's an `onlyCRE` modifier for this.
-- **Reentrancy** — all ETH transfers go through OpenZeppelin's `ReentrancyGuard`. Not taking chances.
-- **Funding** — the contract needs to hold enough ETH before it can pay out. Owner deposits via `depositFunds()` and balance is checked before any claim.
-
-> ⚠️ This is deployed on Arbitrum Sepolia for demo purposes. It hasn't been audited — don't use it with real money.
-
----
-
-## Limitations
-
-Things I know could be better:
-- Only pulling from one weather API right now (Open-Meteo). Ideally I'd verify across multiple sources.
-- Premium pricing is flat — should be dynamic based on location risk.
-- Policies aren't tokenized yet (NFTs would make them tradeable).
-- One location per policy. Area-based coverage would be more practical.
+> ⚠️ Deployed on Arbitrum Sepolia for demo purposes. Not audited — don't use with real money.
 
 ---
 
-## What I'd Build Next
+## Future Roadmap
 
-- [ ] Deploy on multiple chains
-- [ ] Area-based policies instead of single coordinates
-- [ ] Pull weather from multiple sources for verification
-- [ ] Dynamic pricing based on actual risk
-- [ ] Make policies tradeable as NFTs
-- [ ] DAO governance for protocol parameters
+- [ ] CCIP cross-chain deployment (Ethereum ↔ Arbitrum ↔ Polygon)
+- [ ] Area-based policies (coverage zones instead of single coordinates)
+- [ ] Real WeatherAPI + Visual Crossing API keys for production
+- [ ] Subgraph integration for efficient policy indexing
+- [ ] Premium yield strategies for LP capital
+- [ ] Mobile-optimized PWA
 
 ---
 
-## Deployed Contract
+## Deployed Contracts
 
-| Network | Address |
-|---------|---------|
-| Arbitrum Sepolia | `0x0988119B3526C21129E0254f5E8bd995Bed51F6D` |
+| Contract | Network | Address |
+|----------|---------|---------|
+| WeatherShield | Arbitrum Sepolia | `0x85A61e33CA36d1b52A74f9E4E4d4F363685F0bB2` |
+| MockV3Aggregator | Arbitrum Sepolia | `0x8cc290F69e47D6dCFF7bDB674Cd1f3ec01d65284` |
 
 ---
 
 ## Tech Stack
 
-- Solidity 0.8.24 + OpenZeppelin
-- Hardhat + Chai
-- Chainlink CRE
-- Open-Meteo API (free)
+- Solidity 0.8.24 + OpenZeppelin (ERC721, Ownable, ReentrancyGuard)
+- Chainlink CRE + AggregatorV3Interface
+- Hardhat + Chai (33 tests)
+- Open-Meteo + WeatherAPI + Visual Crossing (multi-source)
 - React + Vite + ethers.js
 - Arbitrum Sepolia
 
