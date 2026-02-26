@@ -42,7 +42,7 @@
 ## Screenshot
 
 <p align="center">
-  <img src="./docs/Screenshot.png" alt="WeatherShield Interface" width="700"/>
+  <img src="./docs/Screenshot.png?v=2" alt="WeatherShield Interface" width="700"/>
 </p>
 
 ---
