@@ -21,6 +21,7 @@ const ARBITRUM_SEPOLIA = {
 }
 
 const ARBISCAN_URL = 'https://sepolia.arbiscan.io/tx/'
+const PUBLIC_RPC = 'https://sepolia-rollup.arbitrum.io/rpc'
 
 function App() {
   const [account, setAccount] = useState(null)
@@ -126,8 +127,71 @@ function App() {
     setContract(null)
     setNetworkOk(false)
     setMyPolicies([])
-    setStats({ policies: 0, premiums: '0', payouts: '0', balance: '0', liquidity: '0' })
     showMsg('Disconnected', 'info')
+    loadPublicData() // reload public stats without wallet
+  }
+
+  // Load public contract data without wallet (read-only)
+  async function loadPublicData() {
+    setDataLoading(true)
+    try {
+      const provider = new ethers.JsonRpcProvider(PUBLIC_RPC)
+      const c = new ethers.Contract(CONTRACT_ADDRESS, WeatherShieldABI.abi, provider)
+
+      const [cnt, prem, pays, bal] = await Promise.all([
+        c.policyCounter(),
+        c.totalPremiumsCollected(),
+        c.totalPayouts(),
+        c.getContractBalance()
+      ])
+
+      let poolData = null
+      try { poolData = await c.getPoolStats() } catch (e) { }
+
+      try {
+        const rawPrice = await c.getEthUsdPrice()
+        setEthPrice(Number(rawPrice) / 1e8)
+      } catch (e) { }
+
+      const totalLiq = poolData ? ethers.formatEther(poolData[0]) : '0'
+      setStats({
+        policies: Number(cnt),
+        premiums: ethers.formatEther(prem),
+        payouts: ethers.formatEther(pays),
+        balance: ethers.formatEther(bal),
+        liquidity: totalLiq
+      })
+
+      if (poolData) {
+        setPoolStats({
+          totalLiquidity: ethers.formatEther(poolData[0]),
+          totalShares: ethers.formatEther(poolData[1]),
+          reservedFunds: ethers.formatEther(poolData[2]),
+          availableLiquidity: ethers.formatEther(poolData[3]),
+          protocolFees: ethers.formatEther(poolData[4]),
+          userShares: '0', userValue: '0'
+        })
+      }
+
+      // Load proposals
+      try {
+        const propCount = await c.proposalCounter()
+        const props = []
+        for (let i = 0; i < Number(propCount); i++) {
+          const prop = await c.getProposal(i)
+          props.push({
+            id: i, paramName: prop.paramName, newValue: prop.newValue.toString(),
+            proposer: prop.proposer, votesFor: prop.votesFor.toString(),
+            votesAgainst: prop.votesAgainst.toString(), deadline: prop.deadline,
+            status: Number(prop.status)
+          })
+        }
+        setProposals(props)
+      } catch (e) { }
+    } catch (err) {
+      console.error('public load error:', err)
+    }
+    setDataLoading(false)
   }
 
   // Load all data
@@ -394,6 +458,11 @@ function App() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  // Load public data on mount (no wallet needed)
+  useEffect(() => {
+    loadPublicData()
+  }, [])
+
   useEffect(() => {
     if (form.lat && form.lon) fetchWeather()
   }, [form.lat, form.lon])
@@ -432,7 +501,7 @@ function App() {
           </div>
         )}
 
-        <Stats stats={stats} ethPrice={ethPrice} loading={dataLoading && !account} />
+        <Stats stats={stats} ethPrice={ethPrice} loading={dataLoading} />
 
         {activeTab === 'policies' && (
           <div className="action-grid">
