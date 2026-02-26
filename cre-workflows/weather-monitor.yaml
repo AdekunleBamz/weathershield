@@ -1,19 +1,30 @@
 # WeatherShield CRE Workflow
-# Monitors weather and triggers insurance payouts
+# Multi-source weather monitoring with median aggregation
+# Implements CRE Service Quotas:
+#  - Execution timeout: 5 minutes
+#  - Concurrent capabilities: max 3 (HTTP fetch + EVM read + EVM write)
+#  - HTTP response size: max 100 KB per request
+#  - Gas limit per transaction: 5M
 
 name: weathershield-monitor
-version: "1.0.0"
+version: "2.0.0"
+
+quota_compliance:
+  execution_timeout_seconds: 300  # 5 minutes CRE limit
+  max_concurrent_capabilities: 3
+  http_response_size_limit_kb: 100
+  evm_gas_limit: 5000000
 
 triggers:
   - id: scheduled
     type: cron
     config:
-      schedule: "0 */6 * * *"  # every 6 hours
+      schedule: "0 */6 * * *"  # every 6 hours (well within 30s minimum)
 
 inputs:
   contract_address:
     type: string
-    default: "0x0988119B3526C21129E0254f5E8bd995Bed51F6D"
+    default: "0x85A61e33CA36d1b52A74f9E4E4d4F363685F0bB2"
   location:
     type: string
     default: "40.7128,-74.0060"
@@ -23,12 +34,13 @@ inputs:
     type: uint8
 
 actions:
-  # get weather from open-meteo (free api)
-  - id: fetch_weather
+  # ── Source 1: Open-Meteo (free, no API key) ──────────────────────────
+  - id: fetch_open_meteo
     type: http_request
     config:
       method: GET
       url: "https://api.open-meteo.com/v1/forecast"
+      timeout_seconds: 30
       params:
         latitude: "{{split(inputs.location, ',')[0]}}"
         longitude: "{{split(inputs.location, ',')[1]}}"
@@ -42,41 +54,133 @@ actions:
       temp_max: "{{response.daily.temperature_2m_max[0]}}"
       temp_min: "{{response.daily.temperature_2m_min[0]}}"
 
-  # transform to contract format
-  - id: transform
+  # ── Source 2: WeatherAPI.com (free tier, API key required) ───────────
+  - id: fetch_weatherapi
+    type: http_request
+    config:
+      method: GET
+      url: "https://api.weatherapi.com/v1/forecast.json"
+      timeout_seconds: 30
+      params:
+        key: "{{secrets.WEATHERAPI_KEY}}"
+        q: "{{inputs.location}}"
+        days: "1"
+    outputs:
+      temp: "{{response.current.temp_c}}"
+      rain: "{{response.current.precip_mm}}"
+      daily_precip: "{{response.forecast.forecastday[0].day.totalprecip_mm}}"
+      temp_max: "{{response.forecast.forecastday[0].day.maxtemp_c}}"
+      temp_min: "{{response.forecast.forecastday[0].day.mintemp_c}}"
+    error_handling:
+      on_error: "continue"  # Graceful degradation if API fails
+
+  # ── Source 3: Visual Crossing (free tier, API key required) ──────────
+  - id: fetch_visual_crossing
+    type: http_request
+    config:
+      method: GET
+      url: "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{{inputs.location}}/today"
+      timeout_seconds: 30
+      params:
+        key: "{{secrets.VISUAL_CROSSING_KEY}}"
+        unitGroup: "metric"
+        include: "current,days"
+        contentType: "json"
+    outputs:
+      temp: "{{response.currentConditions.temp}}"
+      rain: "{{response.currentConditions.precip}}"
+      daily_precip: "{{response.days[0].precip}}"
+      temp_max: "{{response.days[0].tempmax}}"
+      temp_min: "{{response.days[0].tempmin}}"
+    error_handling:
+      on_error: "continue"  # Graceful degradation if API fails
+
+  # ── Aggregate: Median of 3 sources ───────────────────────────────────
+  - id: aggregate
     type: compute
-    depends_on: [fetch_weather]
+    depends_on: [fetch_open_meteo, fetch_weatherapi, fetch_visual_crossing]
     config:
       runtime: javascript
       code: |
         const type = inputs.weather_type;
-        let val;
-        
-        if (type === 0 || type === 1) {
-          val = Math.round(actions.fetch_weather.outputs.daily_precip * 10);
-        } else if (type === 2) {
-          val = Math.round(actions.fetch_weather.outputs.temp_min * 10);
-        } else {
-          val = Math.round(actions.fetch_weather.outputs.temp_max * 10);
-        }
-        
-        return { value: val };
-    outputs:
-      weather_value: "{{result.value}}"
+        const sources = [];
 
-  # update contract
+        // Collect available sources
+        function addSource(fetchResult, name) {
+          if (!fetchResult || fetchResult.error) {
+            console.log(`[WARN] ${name} unavailable, skipping`);
+            return;
+          }
+          sources.push(fetchResult);
+        }
+
+        addSource(actions.fetch_open_meteo?.outputs, 'Open-Meteo');
+        addSource(actions.fetch_weatherapi?.outputs, 'WeatherAPI');
+        addSource(actions.fetch_visual_crossing?.outputs, 'Visual Crossing');
+
+        if (sources.length === 0) {
+          throw new Error('All weather sources failed');
+        }
+
+        // Extract relevant value based on weather type
+        function extractValue(src) {
+          if (type === 0 || type === 1) {
+            return Math.round((src.daily_precip || 0) * 10);
+          } else if (type === 2) {
+            return Math.round((src.temp_min || src.temp || 0) * 10);
+          } else {
+            return Math.round((src.temp_max || src.temp || 0) * 10);
+          }
+        }
+
+        const values = sources.map(extractValue);
+
+        // Calculate median
+        function median(arr) {
+          const sorted = [...arr].sort((a, b) => a - b);
+          const mid = Math.floor(sorted.length / 2);
+          if (sorted.length % 2 === 0) {
+            return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+          }
+          return sorted[mid];
+        }
+
+        const medianValue = median(values);
+
+        return {
+          value1: values[0] || medianValue,
+          value2: values[1] || medianValue,
+          value3: values[2] || medianValue,
+          median: medianValue,
+          sourceCount: sources.length,
+          error: null
+        };
+    outputs:
+      val1: "{{result.value1}}"
+      val2: "{{result.value2}}"
+      val3: "{{result.value3}}"
+      median_value: "{{result.median}}"
+      source_count: "{{result.sourceCount}}"
+
+  # ── Update contract with multi-source data ───────────────────────────
   - id: update_chain
     type: evm_write
-    depends_on: [transform]
+    depends_on: [aggregate]
     config:
       address: "{{inputs.contract_address}}"
-      abi: "function updateWeatherData(string,int256)"
-      method: updateWeatherData
+      abi: "function updateWeatherDataMultiSource(string,int256,int256,int256)"
+      method: updateWeatherDataMultiSource
+      gas_limit: 500000
       params:
         - "{{inputs.location}}"
-        - "{{actions.transform.outputs.weather_value}}"
+        - "{{actions.aggregate.outputs.val1}}"
+        - "{{actions.aggregate.outputs.val2}}"
+        - "{{actions.aggregate.outputs.val3}}"
+      error_handling:
+        on_timeout: "retry"
+        max_retries: 2
 
-  # check if claimable
+  # ── Check if claimable ───────────────────────────────────────────────
   - id: check_claim
     type: evm_read
     depends_on: [update_chain]
@@ -89,7 +193,7 @@ actions:
     outputs:
       claimable: "{{result}}"
 
-  # process claim if triggered
+  # ── Process claim if triggered ───────────────────────────────────────
   - id: process_claim
     type: evm_write
     depends_on: [check_claim]
@@ -98,6 +202,10 @@ actions:
       address: "{{inputs.contract_address}}"
       abi: "function processClaim(uint256,int256)"
       method: processClaim
+      gas_limit: 500000
       params:
         - "{{inputs.policy_id}}"
-        - "{{actions.transform.outputs.weather_value}}"
+        - "{{actions.aggregate.outputs.median_value}}"
+      error_handling:
+        on_timeout: "retry"
+        max_retries: 2

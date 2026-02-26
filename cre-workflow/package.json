@@ -1,0 +1,25 @@
+{
+    "name": "weathershield-workflow",
+    "version": "1.0.0",
+    "description": "Chainlink CRE workflow for WeatherShield parametric insurance",
+    "main": "dist/workflow.js",
+    "scripts": {
+        "build": "tsc",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "chainlink",
+        "cre",
+        "parametric-insurance"
+    ],
+    "author": "AdekunleBamz",
+    "license": "MIT",
+    "dependencies": {
+        "@chainlink/cre-sdk": "^0.1.0",
+        "ethers": "^6.9.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/node": "^20.0.0"
+    }
+}
